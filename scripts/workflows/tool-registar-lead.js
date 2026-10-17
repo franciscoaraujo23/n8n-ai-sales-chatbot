@@ -155,6 +155,14 @@ return {
       L.paramsSql('SELECT id, sync_estado, sync_tentativas FROM concluir_sync_lead($1::jsonb)', 'JSON.stringify($json)'),
       [3080, -100], { credentials: L.CRED_PG });
 
+    // Depois de 5 tentativas o lead fica "falhado": a equipa tem de saber.
+    const desistiu = w.no('[GUARD] Sincronização desistiu?', 'n8n-nodes-base.if', 2.2,
+      L.paramsSe("$json.sync_estado === 'falhado'"), [3300, -100]);
+    const eSync = L.paramsRegistarErro('[TOOL] Gravar no Chatbot site', 'lead_nao_sincronizado',
+      "'lead ' + $json.id + ' ficou em falhado depois de ' + $json.sync_tentativas + ' tentativas (ver leads.sync_ultimo_erro)'");
+    const erroSync = w.no('[ERROR] Lead não chegou ao Notion', 'n8n-nodes-base.executeWorkflow', 1.2,
+      eSync.parametros, [3520, -200], eSync.extra);
+
     // --- Resposta ao agente (curta; nunca menciona erros do Notion) -------
     const resposta = w.no('[OUTPUT] Resposta ao agente', 'n8n-nodes-base.code', 2, {
       jsCode: `
@@ -173,7 +181,7 @@ if (v.avisos.includes('telefone_invalido')) partes.push('O telefone indicado nã
 if (estado === 'sem_contacto') partes.push('Ainda não há email nem telefone válidos: sem um deles, a equipa não consegue responder.');
 return [{ json: { resposta: partes.join(' ') } }];
 `,
-    }, [3300, 0]);
+    }, [3740, 0]);
 
     w.liga(entrada, validar);
     w.liga(validar, sessaoOk);
@@ -194,7 +202,10 @@ return [{ json: { resposta: partes.join(' ') } }];
     w.liga(montar, gravarNotion);
     w.liga(gravarNotion, resultado);
     w.liga(resultado, concluir);
-    w.liga(concluir, resposta);
+    w.liga(concluir, desistiu);
+    w.liga(desistiu, erroSync, 0);
+    w.liga(desistiu, resposta, 1);
+    w.liga(erroSync, resposta);
 
     return w.json();
   },

@@ -64,6 +64,13 @@ return [{ json: { handoff_id: h.handoff_id, mensagem: mensagemHandoff({ ...h, ..
     const d = L.paramsDiscord('$json.mensagem', 'Discord chatbot leads');
     const discord = w.no('[OUTPUT] Discord – leads', 'n8n-nodes-base.discord', 2, d.parametros, [1320, -200], d.extra);
 
+    // Um aviso que não chegou ao Discord é um lead que ninguém vê: alerta.
+    const falhou = w.no('[GUARD] O Discord recusou?', 'n8n-nodes-base.if', 2.2, L.paramsSe('Boolean($json.error)'), [1540, -200]);
+    const eDiscord = L.paramsRegistarErro('[OUTPUT] Discord – leads', 'aviso_nao_enviado',
+      "'handoff ' + $('[NORMALIZE] Mensagem para o Discord').first().json.handoff_id + ': ' + String($json.error.message || $json.error)");
+    const erroDiscord = w.no('[ERROR] Aviso não chegou ao Discord', 'n8n-nodes-base.executeWorkflow', 1.2,
+      eDiscord.parametros, [1760, -300], eDiscord.extra);
+
     const estado = w.no('[LOGGING] Estado do envio', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
 UPDATE handoffs SET
   discord_estado = CASE WHEN (p->>'ok')::boolean THEN 'enviado' ELSE 'falhado' END,
@@ -76,7 +83,7 @@ RETURNING handoffs.id, handoffs.discord_estado
   handoff_id: $('[NORMALIZE] Mensagem para o Discord').first().json.handoff_id,
   ok: !$json.error,
   erro: $json.error ? String($json.error.message || JSON.stringify($json.error)) : null,
-})`), [1540, -200], { credentials: L.CRED_PG });
+})`), [1980, -200], { credentials: L.CRED_PG });
 
     const resposta = w.no('[OUTPUT] Resposta ao agente', 'n8n-nodes-base.code', 2, {
       jsCode: `
@@ -91,7 +98,7 @@ return [{
   },
 }];
 `,
-    }, [1760, 0]);
+    }, [2200, 0]);
 
     w.liga(entrada, validar);
     w.liga(validar, sessaoOk);
@@ -101,7 +108,10 @@ return [{
     w.liga(primeiro, mensagem, 0);
     w.liga(primeiro, resposta, 1);
     w.liga(mensagem, discord);
-    w.liga(discord, estado);
+    w.liga(discord, falhou);
+    w.liga(falhou, erroDiscord, 0);
+    w.liga(falhou, estado, 1);
+    w.liga(erroDiscord, estado);
     w.liga(estado, resposta);
 
     return w.json();

@@ -484,12 +484,146 @@
       }
     },
     {
+      "id": "d4a3dd02-ebff-4871-ae5c-4a8009bf8712",
+      "name": "[GUARD] Sincronização desistiu?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3300,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "19101c82-5aad-4b3f-a832-5d920c78bc69",
+              "leftValue": "={{ $json.sync_estado === 'falhado' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "53c73342-c481-47ed-a85e-b59c9374113b",
+      "name": "[ERROR] Lead não chegou ao Notion",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3520,
+        -200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REF:Chatbot – error-handler",
+          "cachedResultName": "Chatbot – error-handler"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow_id": "={{ $workflow.id }}",
+            "workflow_nome": "={{ $workflow.name }}",
+            "no": "[TOOL] Gravar no Chatbot site",
+            "tipo": "lead_nao_sincronizado",
+            "mensagem": "={{ 'lead ' + $json.id + ' ficou em falhado depois de ' + $json.sync_tentativas + ' tentativas (ver leads.sync_ultimo_erro)' }}",
+            "execution_id": "={{ $execution.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "workflow_id",
+              "displayName": "workflow_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "workflow_nome",
+              "displayName": "workflow_nome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "no",
+              "displayName": "no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mensagem",
+              "displayName": "mensagem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
       "id": "16439fba-5d84-41b8-ae9d-cae431f91c31",
       "name": "[OUTPUT] Resposta ao agente",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3300,
+        3740,
         0
       ],
       "parameters": {
@@ -699,6 +833,35 @@
       "main": [
         [
           {
+            "node": "[GUARD] Sincronização desistiu?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Sincronização desistiu?": {
+      "main": [
+        [
+          {
+            "node": "[ERROR] Lead não chegou ao Notion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "[OUTPUT] Resposta ao agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[ERROR] Lead não chegou ao Notion": {
+      "main": [
+        [
+          {
             "node": "[OUTPUT] Resposta ao agente",
             "type": "main",
             "index": 0
@@ -713,6 +876,7 @@
     "saveDataErrorExecution": "all",
     "saveManualExecutions": true,
     "timezone": "Europe/Lisbon",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "Chatbot – error-handler"
   }
 }

@@ -74,6 +74,24 @@
 - **Custo estimado inclui as idas extra ao modelo** quando o agente usa
   tools (cada uma volta a enviar o contexto inteiro).
 
+## Erros
+
+- **Um error-handler com duas entradas**: o Error Trigger (erros não
+  tratados, de todos os workflows) e uma chamada direta para erros
+  TRATADOS — o visitante recebe uma resposta útil, mas a equipa tem de
+  saber: falha a gravar o turno, agente que falhou, base de conhecimento em
+  falta, aviso que o Discord recusou, lead que desistiu de sincronizar.
+- **Os avisos de erro tratados vão em linha, sem esperar.** Um sub-workflow
+  devolve a saída do último nó executado; um ramo paralelo podia acabar em
+  último e trocar a resposta. O Execute Workflow sem espera devolve o item
+  que recebeu (verificado no código do n8n 2.29.10), por isso o fluxo
+  principal segue com os mesmos dados.
+- **Anti-spam por workflow (5 minutos)**, decidido em SQL com um lock, e o
+  alerta desmarca-se se o Discord falhar, para o próximo erro tentar outra vez.
+- **O alerta nunca leva a mensagem de erro**, que pode ter texto de
+  visitantes; fica só no Postgres. Erros tratados não têm link para a
+  execução (as bem-sucedidas não são gravadas).
+
 ## Comportamento do bot
 
 - **Marcação por link do Cal.com**, aberto num separador novo, com nome e

@@ -92,16 +92,50 @@ function refWorkflow(nome) {
   return { __rl: true, mode: 'id', value: `REF:${nome}`, cachedResultName: nome };
 }
 
-/** Settings comuns: sem gravar execuções bem-sucedidas (dados pessoais). */
+const ERROR_HANDLER = 'Chatbot – error-handler';
+
+/**
+ * Settings comuns: sem gravar execuções bem-sucedidas (dados pessoais) e
+ * com o error-handler como errorWorkflow (o próprio error-handler passa
+ * { errorWorkflow: null }). O nome é trocado pelo ID no envio.
+ */
 function settingsBase(extra) {
-  return {
+  const s = {
     executionOrder: 'v1',
     saveDataSuccessExecution: 'none',
     saveDataErrorExecution: 'all',
     saveManualExecutions: true,
     timezone: 'Europe/Lisbon',
     callerPolicy: 'workflowsFromSameOwner',
+    errorWorkflow: ERROR_HANDLER,
     ...(extra || {}),
+  };
+  for (const k of Object.keys(s)) if (s[k] === null || s[k] === undefined) delete s[k];
+  return s;
+}
+
+/**
+ * Ramo lateral que regista um erro TRATADO no error-handler (registo no
+ * Postgres e alerta com anti-spam), sem esperar pela resposta e sem
+ * nunca falhar o fluxo principal.
+ */
+function paramsRegistarErro(no, tipo, expressaoMensagem) {
+  return {
+    parametros: {
+      source: 'database',
+      workflowId: refWorkflow(ERROR_HANDLER),
+      workflowInputs: entradas({
+        workflow_id: '={{ $workflow.id }}',
+        workflow_nome: '={{ $workflow.name }}',
+        no,
+        tipo,
+        mensagem: `={{ ${expressaoMensagem} }}`,
+        execution_id: '={{ $execution.id }}',
+      }),
+      mode: 'each',
+      options: { waitForSubWorkflow: false },
+    },
+    extra: { onError: 'continueRegularOutput' },
   };
 }
 
@@ -237,6 +271,8 @@ module.exports = {
   credencial,
   refWorkflow,
   settingsBase,
+  ERROR_HANDLER,
+  paramsRegistarErro,
   prompt,
   entradas,
   CAMPOS_PAYLOAD,

@@ -133,6 +133,106 @@
           "name": "Postgres chatbot"
         }
       },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "2825e7a1-74c5-4933-af34-3499482c7b89",
+      "name": "[ERROR] Falha a registar bloqueio",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        -200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REF:Chatbot – error-handler",
+          "cachedResultName": "Chatbot – error-handler"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "workflow_id": "={{ $workflow.id }}",
+            "workflow_nome": "={{ $workflow.name }}",
+            "no": "[LOGGING] Registar bloqueio",
+            "tipo": "logging_bloqueio",
+            "mensagem": "={{ String(($json.error && ($json.error.message || $json.error)) || 'sem detalhe') }}",
+            "execution_id": "={{ $execution.id }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "workflow_id",
+              "displayName": "workflow_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "workflow_nome",
+              "displayName": "workflow_nome",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "no",
+              "displayName": "no",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "mensagem",
+              "displayName": "mensagem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "execution_id",
+              "displayName": "execution_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "each",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
       "onError": "continueRegularOutput"
     },
     {
@@ -141,7 +241,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1320,
         0
       ],
       "parameters": {
@@ -209,6 +309,24 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "[ERROR] Falha a registar bloqueio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[ERROR] Falha a registar bloqueio": {
+      "main": [
+        [
+          {
+            "node": "[OUTPUT] Resultado",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     }
@@ -219,6 +337,7 @@
     "saveDataErrorExecution": "all",
     "saveManualExecutions": true,
     "timezone": "Europe/Lisbon",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "Chatbot – error-handler"
   }
 }

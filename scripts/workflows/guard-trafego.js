@@ -47,21 +47,28 @@ return [{ json: { ...r, resposta: r.permitido ? null : respostaFixa(r.motivo, CO
   ...$('[TRIGGER] Mensagem canónica').first().json,
   resposta: $json.resposta,
   guarda: $json.motivo,
-})`), [880, -100], { credentials: L.CRED_PG, onError: 'continueRegularOutput' });
+})`), [880, -100], { credentials: L.CRED_PG, onError: 'continueErrorOutput' });
+
+    const eRegistar = L.paramsRegistarErro('[LOGGING] Registar bloqueio', 'logging_bloqueio',
+      "String(($json.error && ($json.error.message || $json.error)) || 'sem detalhe')");
+    const erroRegistar = w.no('[ERROR] Falha a registar bloqueio', 'n8n-nodes-base.executeWorkflow', 1.2,
+      eRegistar.parametros, [1100, -200], eRegistar.extra);
 
     const resultado = w.no('[OUTPUT] Resultado', 'n8n-nodes-base.code', 2, {
       jsCode: `
 const r = $('[GUARD] Avaliar tráfego').first().json;
 return [{ json: { permitido: r.permitido, motivo: r.motivo, resposta: r.resposta } }];
 `,
-    }, [1100, 0]);
+    }, [1320, 0]);
 
     w.liga(entrada, contar);
     w.liga(contar, avaliar);
     w.liga(avaliar, bloqueado);
     w.liga(bloqueado, registar, 0);
     w.liga(bloqueado, resultado, 1);
-    w.liga(registar, resultado);
+    w.liga(registar, resultado, 0);
+    w.liga(registar, erroRegistar, 1);
+    w.liga(erroRegistar, resultado);
 
     return w.json();
   },

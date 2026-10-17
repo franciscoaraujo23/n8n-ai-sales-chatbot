@@ -332,6 +332,7 @@
     "saveDataErrorExecution": "all",
     "saveManualExecutions": true,
     "timezone": "Europe/Lisbon",
-    "callerPolicy": "workflowsFromSameOwner"
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "Chatbot – error-handler"
   }
 }

@@ -1,0 +1,349 @@
+{
+  "name": "Chatbot – error-handler",
+  "nodes": [
+    {
+      "id": "0782858b-31e1-4b3b-aff3-547c6171c836",
+      "name": "[TRIGGER] Erro de workflow",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "f01be344-6ca1-41d0-aeba-925120a1fa0f",
+      "name": "[TRIGGER] Registar erro (chamada)",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        100
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "workflow_id",
+              "type": "string"
+            },
+            {
+              "name": "workflow_nome",
+              "type": "string"
+            },
+            {
+              "name": "no",
+              "type": "string"
+            },
+            {
+              "name": "tipo",
+              "type": "string"
+            },
+            {
+              "name": "mensagem",
+              "type": "string"
+            },
+            {
+              "name": "execution_id",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "67ac2786-934f-4e83-a468-919b71b5895f",
+      "name": "[NORMALIZE] Erro do trigger",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/erros.js =====\n/**\n * Normalização de erros e alerta para o Discord (canal de erros).\n *\n * Dois caminhos de entrada no error-handler:\n *  - Error Trigger: um workflow falhou (erro não tratado);\n *  - registar-erro: um workflow tratou o erro (para o visitante não o ver),\n *    mas quer que fique registado e alertado (ex.: falha a gravar o turno).\n *\n * O alerta NUNCA inclui a mensagem de erro: pode conter texto de\n * visitantes. A mensagem fica só no Postgres (tabela errors).\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\n/** Dados do Error Trigger → registo. Cobre erros de execução e de trigger. */\nfunction normalizarErroTrigger(d) {\n  const dados = d || {};\n  const wf = dados.workflow || {};\n  const exec = dados.execution || {};\n  const erro = exec.error || (dados.trigger && dados.trigger.error) || {};\n  const no = exec.lastNodeExecuted || (erro.node && erro.node.name) || (dados.trigger ? 'trigger' : null);\n  return {\n    origem: 'error_trigger',\n    workflow_id: wf.id ? String(wf.id) : null,\n    workflow_nome: wf.name || null,\n    no,\n    tipo: erro.name || (dados.trigger ? 'erro_no_trigger' : 'erro'),\n    mensagem: String(erro.message || erro.description || 'sem mensagem').slice(0, 4000),\n    execution_id: exec.id ? String(exec.id) : null,\n    execution_url: exec.url || null,\n  };\n}\n\n/** Pedido do registar-erro (vindo de outro workflow) → registo. */\nfunction normalizarErroRegistado(e) {\n  const x = e || {};\n  return {\n    origem: 'registar_erro',\n    workflow_id: x.workflow_id ? String(x.workflow_id) : null,\n    workflow_nome: x.workflow_nome || null,\n    no: x.no || null,\n    tipo: x.tipo || 'erro_tratado',\n    mensagem: String(x.mensagem || 'sem mensagem').slice(0, 4000),\n    execution_id: x.execution_id ? String(x.execution_id) : null,\n    // Execuções bem-sucedidas não são gravadas: um link para elas não abriria.\n    execution_url: null,\n  };\n}\n\nfunction limparLinha(valor) {\n  return String(valor === null || valor === undefined ? '—' : valor)\n    .replace(/@(everyone|here)/gi, '@​$1')\n    .replace(/[\\r\\n]+/g, ' ')\n    .slice(0, 200);\n}\n\n/** Alerta para o canal de erros: onde e o quê, sem conteúdo de visitantes. */\nfunction mensagemErro(r, erroId, janelaMinutos) {\n  const linhas = [\n    `**Erro no chatbot — ${limparLinha(r.workflow_nome)}**`,\n    `Nó: ${limparLinha(r.no)}`,\n    `Tipo: ${limparLinha(r.tipo)}`,\n  ];\n  if (r.execution_url) linhas.push(`Execução: <${r.execution_url}>`);\n  linhas.push(`Detalhe no Postgres: \\`SELECT * FROM errors WHERE id = ${Number(erroId) || 0};\\``);\n  linhas.push(`_Próximo alerta deste workflow só daqui a ${janelaMinutos} minutos; os erros entretanto ficam registados._`);\n  return linhas.join('\\n');\n}\n\n// ===== código deste nó =====\nreturn [{ json: normalizarErroTrigger($input.first().json) }];"
+      }
+    },
+    {
+      "id": "bcd6fa48-099e-4f4d-ac3d-c964ad7dae82",
+      "name": "[NORMALIZE] Erro registado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/erros.js =====\n/**\n * Normalização de erros e alerta para o Discord (canal de erros).\n *\n * Dois caminhos de entrada no error-handler:\n *  - Error Trigger: um workflow falhou (erro não tratado);\n *  - registar-erro: um workflow tratou o erro (para o visitante não o ver),\n *    mas quer que fique registado e alertado (ex.: falha a gravar o turno).\n *\n * O alerta NUNCA inclui a mensagem de erro: pode conter texto de\n * visitantes. A mensagem fica só no Postgres (tabela errors).\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\n/** Dados do Error Trigger → registo. Cobre erros de execução e de trigger. */\nfunction normalizarErroTrigger(d) {\n  const dados = d || {};\n  const wf = dados.workflow || {};\n  const exec = dados.execution || {};\n  const erro = exec.error || (dados.trigger && dados.trigger.error) || {};\n  const no = exec.lastNodeExecuted || (erro.node && erro.node.name) || (dados.trigger ? 'trigger' : null);\n  return {\n    origem: 'error_trigger',\n    workflow_id: wf.id ? String(wf.id) : null,\n    workflow_nome: wf.name || null,\n    no,\n    tipo: erro.name || (dados.trigger ? 'erro_no_trigger' : 'erro'),\n    mensagem: String(erro.message || erro.description || 'sem mensagem').slice(0, 4000),\n    execution_id: exec.id ? String(exec.id) : null,\n    execution_url: exec.url || null,\n  };\n}\n\n/** Pedido do registar-erro (vindo de outro workflow) → registo. */\nfunction normalizarErroRegistado(e) {\n  const x = e || {};\n  return {\n    origem: 'registar_erro',\n    workflow_id: x.workflow_id ? String(x.workflow_id) : null,\n    workflow_nome: x.workflow_nome || null,\n    no: x.no || null,\n    tipo: x.tipo || 'erro_tratado',\n    mensagem: String(x.mensagem || 'sem mensagem').slice(0, 4000),\n    execution_id: x.execution_id ? String(x.execution_id) : null,\n    // Execuções bem-sucedidas não são gravadas: um link para elas não abriria.\n    execution_url: null,\n  };\n}\n\nfunction limparLinha(valor) {\n  return String(valor === null || valor === undefined ? '—' : valor)\n    .replace(/@(everyone|here)/gi, '@​$1')\n    .replace(/[\\r\\n]+/g, ' ')\n    .slice(0, 200);\n}\n\n/** Alerta para o canal de erros: onde e o quê, sem conteúdo de visitantes. */\nfunction mensagemErro(r, erroId, janelaMinutos) {\n  const linhas = [\n    `**Erro no chatbot — ${limparLinha(r.workflow_nome)}**`,\n    `Nó: ${limparLinha(r.no)}`,\n    `Tipo: ${limparLinha(r.tipo)}`,\n  ];\n  if (r.execution_url) linhas.push(`Execução: <${r.execution_url}>`);\n  linhas.push(`Detalhe no Postgres: \\`SELECT * FROM errors WHERE id = ${Number(erroId) || 0};\\``);\n  linhas.push(`_Próximo alerta deste workflow só daqui a ${janelaMinutos} minutos; os erros entretanto ficam registados._`);\n  return linhas.join('\\n');\n}\n\n// ===== código deste nó =====\nreturn [{ json: normalizarErroRegistado($input.first().json) }];"
+      }
+    },
+    {
+      "id": "2928607e-ed30-4c58-a621-12f24014f146",
+      "name": "[LOGGING] Registar erro",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT r.erro_id, r.alertar\nFROM (SELECT $1::jsonb AS p) AS x\nCROSS JOIN LATERAL registar_erro(\n  p->>'origem', p->>'workflow_id', p->>'workflow_nome', p->>'no', p->>'tipo',\n  p->>'mensagem', p->>'execution_id', p->>'execution_url', 5\n) AS r",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 500
+    },
+    {
+      "id": "06a1bab1-0a3d-4881-a5b6-20be80149cfe",
+      "name": "[GUARD] Alertar agora?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "191a5b66-2c7e-49a5-ae0d-09ef2d5c789b",
+              "leftValue": "={{ $json.alertar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6a341d0a-9829-485d-acd0-59f9b188de2b",
+      "name": "[NORMALIZE] Mensagem de alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/erros.js =====\n/**\n * Normalização de erros e alerta para o Discord (canal de erros).\n *\n * Dois caminhos de entrada no error-handler:\n *  - Error Trigger: um workflow falhou (erro não tratado);\n *  - registar-erro: um workflow tratou o erro (para o visitante não o ver),\n *    mas quer que fique registado e alertado (ex.: falha a gravar o turno).\n *\n * O alerta NUNCA inclui a mensagem de erro: pode conter texto de\n * visitantes. A mensagem fica só no Postgres (tabela errors).\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\n/** Dados do Error Trigger → registo. Cobre erros de execução e de trigger. */\nfunction normalizarErroTrigger(d) {\n  const dados = d || {};\n  const wf = dados.workflow || {};\n  const exec = dados.execution || {};\n  const erro = exec.error || (dados.trigger && dados.trigger.error) || {};\n  const no = exec.lastNodeExecuted || (erro.node && erro.node.name) || (dados.trigger ? 'trigger' : null);\n  return {\n    origem: 'error_trigger',\n    workflow_id: wf.id ? String(wf.id) : null,\n    workflow_nome: wf.name || null,\n    no,\n    tipo: erro.name || (dados.trigger ? 'erro_no_trigger' : 'erro'),\n    mensagem: String(erro.message || erro.description || 'sem mensagem').slice(0, 4000),\n    execution_id: exec.id ? String(exec.id) : null,\n    execution_url: exec.url || null,\n  };\n}\n\n/** Pedido do registar-erro (vindo de outro workflow) → registo. */\nfunction normalizarErroRegistado(e) {\n  const x = e || {};\n  return {\n    origem: 'registar_erro',\n    workflow_id: x.workflow_id ? String(x.workflow_id) : null,\n    workflow_nome: x.workflow_nome || null,\n    no: x.no || null,\n    tipo: x.tipo || 'erro_tratado',\n    mensagem: String(x.mensagem || 'sem mensagem').slice(0, 4000),\n    execution_id: x.execution_id ? String(x.execution_id) : null,\n    // Execuções bem-sucedidas não são gravadas: um link para elas não abriria.\n    execution_url: null,\n  };\n}\n\nfunction limparLinha(valor) {\n  return String(valor === null || valor === undefined ? '—' : valor)\n    .replace(/@(everyone|here)/gi, '@​$1')\n    .replace(/[\\r\\n]+/g, ' ')\n    .slice(0, 200);\n}\n\n/** Alerta para o canal de erros: onde e o quê, sem conteúdo de visitantes. */\nfunction mensagemErro(r, erroId, janelaMinutos) {\n  const linhas = [\n    `**Erro no chatbot — ${limparLinha(r.workflow_nome)}**`,\n    `Nó: ${limparLinha(r.no)}`,\n    `Tipo: ${limparLinha(r.tipo)}`,\n  ];\n  if (r.execution_url) linhas.push(`Execução: <${r.execution_url}>`);\n  linhas.push(`Detalhe no Postgres: \\`SELECT * FROM errors WHERE id = ${Number(erroId) || 0};\\``);\n  linhas.push(`_Próximo alerta deste workflow só daqui a ${janelaMinutos} minutos; os erros entretanto ficam registados._`);\n  return linhas.join('\\n');\n}\n\n// ===== código deste nó =====\nconst r = $input.first().json;\n// Os dados do erro vêm do nó de normalização que correu (trigger ou chamada).\nlet erro;\ntry { erro = $('[NORMALIZE] Erro do trigger').first().json; } catch (e) { erro = $('[NORMALIZE] Erro registado').first().json; }\nreturn [{ json: { erro_id: r.erro_id, mensagem: mensagemErro(erro, r.erro_id, 5) } }];"
+      }
+    },
+    {
+      "id": "479bd0bf-d439-40d6-ae24-15ce62bde5ec",
+      "name": "[OUTPUT] Discord – erros",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -100
+      ],
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $json.mensagem }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": null,
+          "name": "Discord chatbot erros"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1dea95d8-ae95-4709-a1e6-f28f8aa7c457",
+      "name": "[GUARD] O Discord aceitou?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "01de02ca-cc93-4da8-aaa3-a1e19361eb45",
+              "leftValue": "={{ !$json.error }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2a28a777-a72d-44c5-a235-c6ada4acc297",
+      "name": "[LOGGING] Alerta não enviado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE errors SET alertado = false WHERE id = (($1::jsonb)->>0)::bigint RETURNING id",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify([$('[NORMALIZE] Mensagem de alerta').first().json.erro_id]) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "[TRIGGER] Erro de workflow": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Erro do trigger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TRIGGER] Registar erro (chamada)": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Erro registado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Erro do trigger": {
+      "main": [
+        [
+          {
+            "node": "[LOGGING] Registar erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Erro registado": {
+      "main": [
+        [
+          {
+            "node": "[LOGGING] Registar erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[LOGGING] Registar erro": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] Alertar agora?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Alertar agora?": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Mensagem de alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Mensagem de alerta": {
+      "main": [
+        [
+          {
+            "node": "[OUTPUT] Discord – erros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[OUTPUT] Discord – erros": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] O Discord aceitou?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] O Discord aceitou?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "[LOGGING] Alerta não enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "Europe/Lisbon",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

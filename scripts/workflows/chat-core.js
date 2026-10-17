@@ -236,6 +236,21 @@ return [{
 `),
     }, [1760, -100]);
 
+    // --- Erros tratados: ficam registados e alertados (error-handler) -------
+    // Em linha e sem esperar: o Execute Workflow devolve o item que recebeu,
+    // por isso o fluxo principal segue com os mesmos dados.
+    const eAgente = L.paramsRegistarErro('[AGENT] Assistente Nautica', 'agente_falhou',
+      "String(($json.error && ($json.error.message || $json.error)) || 'sem detalhe')");
+    const erroAgente = w.no('[ERROR] Agente falhou', 'n8n-nodes-base.executeWorkflow', 1.2,
+      eAgente.parametros, [1540, -100], eAgente.extra);
+
+    const faltaKb = w.no('[GUARD] Falta a base de conhecimento?', 'n8n-nodes-base.if', 2.2,
+      L.paramsSe("$json.guarda === 'sem_kb'"), [1320, 200]);
+    const eKb = L.paramsRegistarErro('[GUARD] Avaliar conteúdo e custo', 'sem_kb',
+      "'Não há versão ativa em kb_versions: o bot está a responder só com o fallback.'");
+    const erroKb = w.no('[ERROR] Base de conhecimento em falta', 'n8n-nodes-base.executeWorkflow', 1.2,
+      eKb.parametros, [1540, 150], eKb.extra);
+
     // --- Registo do turno e resposta ---------------------------------------
     const montar = w.no('[LOGGING] Montar turno', 'n8n-nodes-base.code', 2, {
       jsCode: `
@@ -269,6 +284,11 @@ return [{
       L.paramsSql('SELECT * FROM registar_turno($1::jsonb)', 'JSON.stringify($json)'),
       [2200, 0], { credentials: L.CRED_PG, onError: 'continueErrorOutput' });
 
+    const eGravar = L.paramsRegistarErro('[LOGGING] Gravar turno', 'logging_turno',
+      "String(($json.error && ($json.error.message || $json.error)) || 'sem detalhe')");
+    const erroGravar = w.no('[ERROR] Falha a gravar turno', 'n8n-nodes-base.executeWorkflow', 1.2,
+      eGravar.parametros, [2420, 150], eGravar.extra);
+
     const devolver = w.no('[OUTPUT] Devolver ao adaptador', 'n8n-nodes-base.code', 2, {
       jsCode: `
 const t = $('[LOGGING] Montar turno').first().json;
@@ -288,7 +308,7 @@ return [{
   },
 }];
 `,
-    }, [2420, 0]);
+    }, [2640, 0]);
 
     w.liga(entrada, validar);
     w.liga(validar, contexto);
@@ -302,14 +322,19 @@ return [{
     w.liga(toolLead, agente, 0, 'ai_tool');
     w.liga(toolHumano, agente, 0, 'ai_tool');
     w.liga(agente, leadAtual, 0);
-    w.liga(agente, fallback, 1);
+    w.liga(agente, erroAgente, 1);
+    w.liga(erroAgente, fallback);
     w.liga(leadAtual, pos);
     w.liga(pos, montar);
     w.liga(fallback, montar);
-    w.liga(fixa, montar);
+    w.liga(fixa, faltaKb);
+    w.liga(faltaKb, erroKb, 0);
+    w.liga(faltaKb, montar, 1);
+    w.liga(erroKb, montar);
     w.liga(montar, gravar);
     w.liga(gravar, devolver, 0);
-    w.liga(gravar, devolver, 1);
+    w.liga(gravar, erroGravar, 1);
+    w.liga(erroGravar, devolver);
 
     return w.json();
   },

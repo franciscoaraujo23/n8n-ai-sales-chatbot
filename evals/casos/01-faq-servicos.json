@@ -1,0 +1,17 @@
+{
+  "id": "faq-servicos",
+  "categoria": "perguntas_frequentes",
+  "descricao": "Pergunta direta sobre serviços: responde com a base, sem propor a chamada logo na primeira resposta.",
+  "turnos": [
+    {
+      "texto": "Olá! Que serviços é que vocês oferecem?",
+      "esperado": {
+        "guarda": null,
+        "deve_conter": ["/automa/i"],
+        "sem_tools": true,
+        "cta": false,
+        "max_chars": 1200
+      }
+    }
+  ]
+}

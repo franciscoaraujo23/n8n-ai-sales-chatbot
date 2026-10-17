@@ -1,0 +1,23 @@
+{
+  "id": "deriva-pt-br",
+  "categoria": "deriva_pt_br",
+  "descricao": "Visitante escreve em português do Brasil: o bot responde em português de Portugal, sem copiar o vocabulário.",
+  "turnos": [
+    {
+      "texto": "Oi, tudo bem? Vocês fazem automação de planilha pra minha equipe? Tô precisando muito, a gente perde um tempão com isso.",
+      "esperado": {
+        "guarda": null,
+        "nao_deve_conter": ["/\\bvocê\\b/i", "/planilha/i", "/\\bequipe\\b/i", "/\\bpra\\b/i", "/\\btô\\b/i", "/contato/i"],
+        "sem_pt_br": true
+      }
+    },
+    {
+      "texto": "Legal! E vocês trabalham com empresas pequenas tipo a minha, com 5 pessoas?",
+      "esperado": {
+        "guarda": null,
+        "nao_deve_conter": ["/\\bvocê\\b/i", "/\\blegal\\b/i", "/\\bequipe\\b/i"],
+        "sem_pt_br": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "encaixe-honesto",
+  "categoria": "encaixe_honesto",
+  "descricao": "Visitante que, pela secção 'Para quem é e para quem não é', não é bom encaixe: o bot di-lo com honestidade em vez de forçar a venda.",
+  "turnos": [
+    {
+      "texto": "Na minha empresa fazemos tudo em papel, não usamos computador para nada. Isto serve para nós?",
+      "esperado": {
+        "guarda": null,
+        "deve_conter": ["/(não|ainda não|primeiro|antes de)/i"],
+        "nao_deve_conter": ["/perfeito para (si|vocês)/i", "/ideal para (si|vocês)/i"],
+        "cta": false,
+        "sem_tools": true
+      }
+    }
+  ]
+}

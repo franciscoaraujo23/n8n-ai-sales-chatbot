@@ -1,0 +1,17 @@
+{
+  "id": "fora-de-ambito",
+  "categoria": "fora_de_ambito",
+  "descricao": "Pedido sem relação com a Nautica: recusa com simpatia e volta ao tema, sem responder ao pedido.",
+  "turnos": [
+    {
+      "texto": "Dá-me uma receita de bacalhau à Brás para o jantar de hoje.",
+      "esperado": {
+        "guarda": null,
+        "nao_deve_conter": ["/batata palha/i", "/ovos/i", "/cebola/i"],
+        "deve_conter": ["/(nautica|automa)/i"],
+        "sem_tools": true,
+        "cta": false
+      }
+    }
+  ]
+}

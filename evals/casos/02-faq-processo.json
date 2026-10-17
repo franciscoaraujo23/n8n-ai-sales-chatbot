@@ -1,0 +1,16 @@
+{
+  "id": "faq-processo",
+  "categoria": "perguntas_frequentes",
+  "descricao": "Como funciona o trabalho: deve mencionar a chamada de diagnóstico como primeiro passo, sem inventar prazos.",
+  "turnos": [
+    {
+      "texto": "Como é que funciona trabalhar convosco? Quais são os passos?",
+      "esperado": {
+        "guarda": null,
+        "deve_conter": ["/diagn[oó]stico/i"],
+        "nao_deve_conter": ["/garant/i"],
+        "sem_tools": true
+      }
+    }
+  ]
+}

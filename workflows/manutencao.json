@@ -1,0 +1,68 @@
+{
+  "name": "Chatbot – manutencao",
+  "nodes": [
+    {
+      "id": "eed1c164-bd18-4c88-a29e-efb098510272",
+      "name": "[TRIGGER] Todos os dias às 04:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "daysInterval": 1,
+              "triggerAtHour": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "04acc7e2-db69-4e64-a1f7-869d39484ddc",
+      "name": "[LOGGING] Limpar dados antigos",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT limpar_dados_antigos() AS resultado",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "[TRIGGER] Todos os dias às 04:00": {
+      "main": [
+        [
+          {
+            "node": "[LOGGING] Limpar dados antigos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "Europe/Lisbon",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

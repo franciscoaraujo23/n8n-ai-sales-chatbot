@@ -63,6 +63,24 @@ const CONFIG = {
   marcadorCta: '[[MARCAR]]',
 
   motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],
+
+  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).
+  // Enquanto for null, o kb-sync falha com uma mensagem clara.
+  kb: {
+    googleDocId: null,
+  },
+
+  notion: {
+    versaoApi: '2022-06-28',
+    // Base onde o bot escreve (dentro de "CRM Clientes").
+    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',
+    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.
+    // tipoTelefone: tipo da propriedade Telefone em cada base.
+    crms: [
+      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },
+      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },
+    ],
+  },
 };
 
 // --- o build corta a partir daqui ---

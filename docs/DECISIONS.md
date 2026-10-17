@@ -34,8 +34,27 @@
 - **Sem gravação de execuções bem-sucedidas** no `chat-site`, `chat-core` e
   nas tools: contêm texto e dados pessoais dos visitantes. Os erros continuam
   a ser gravados; o que é preciso de cada turno fica na tabela `turns`.
+- **Sincronização com o Notion controlada no Postgres** (`002_sync_leads.sql`).
+  Uma reserva com prazo impede que a tool e a nova tentativa agendada tratem
+  o mesmo lead ao mesmo tempo (o que criaria duas páginas). Se os dados mudam
+  durante a sincronização, o lead volta a pendente em vez de as alterações se
+  perderem. Backoff de 5 min, 30 min, 2 h e 12 h; à quinta falha, "falhado".
+- **`atualizado_em` só muda com os dados do lead**, não com tentativas de
+  sincronização: é a data do último contacto que conta para a retenção.
 - **Retenção de 12 meses** (alinhada com a política de privacidade), limpeza
   diária com `limpar_dados_antigos()`.
+
+## Engenharia
+
+- **Workflows definidos em JavaScript** (`scripts/workflows/`) e gerados por
+  `scripts/build.js`. O código dos Code nodes vem de `/src`, testado; os
+  exports em `/workflows` não têm IDs de credenciais nem de workflows (são
+  resolvidos pelo nome no envio).
+- **Os Code nodes gerados também são testados** (`tests/workflows.test.js`),
+  com uma simulação de `$`, `$json` e `$input`: apanha nomes de nós trocados
+  e campos inexistentes antes de chegar ao n8n.
+- **Mensagens para o Discord sem menções**: texto do visitante com
+  "@everyone" não notifica o canal.
 
 ## Comportamento do bot
 
@@ -52,6 +71,14 @@
   mencionar o chatbot. A coluna `consentimento` saiu da tabela `leads`.
 
 ## Notion
+
+- **Pedidos à API do Notion por HTTP Request** (versão 2022-06-28), como o
+  workflow "Site – Leads" já faz, em vez do nó Notion: controlo total do
+  filtro "email OU telefone" e do PATCH/POST.
+- **Telefone comparado pelos últimos 9 dígitos.** Nos CRMs aparece em vários
+  formatos ("912345678", "+351912345678", "++351…").
+- **Só se enviam campos com valor**, e Origem/Estado só na criação: o bot
+  nunca apaga o que a equipa escreveu à mão nem lhe muda o Estado.
 
 - **Base "Chatbot site" dentro de "CRM Clientes"**, separada do CRM dos
   comerciais. O bot nunca escreve nos CRMs dos comerciais.

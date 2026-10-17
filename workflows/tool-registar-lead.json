@@ -1,0 +1,718 @@
+{
+  "name": "Chatbot – tool-registar-lead",
+  "nodes": [
+    {
+      "id": "7d6fd340-dafe-4234-ab4f-1bc9ac4d350b",
+      "name": "[TRIGGER] Chamada do agente",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "workflowInputs",
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "session_id",
+              "type": "string"
+            },
+            {
+              "name": "nome",
+              "type": "string"
+            },
+            {
+              "name": "empresa",
+              "type": "string"
+            },
+            {
+              "name": "setor",
+              "type": "string"
+            },
+            {
+              "name": "problema",
+              "type": "string"
+            },
+            {
+              "name": "email",
+              "type": "string"
+            },
+            {
+              "name": "telefone",
+              "type": "string"
+            },
+            {
+              "name": "resumo",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "9137e2ec-82fa-4eeb-a92b-bbb8ddd68cbf",
+      "name": "[GUARD] Validar lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).\n  // Enquanto for null, o kb-sync falha com uma mensagem clara.\n  kb: {\n    googleDocId: null,\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== src/guardas.js =====\n/**\n * Guardas determinísticas, aplicadas antes de qualquer chamada ao LLM.\n *\n * JavaScript puro, sem require: o scripts/build.js copia este ficheiro\n * (até à linha de corte) para os Code nodes. Todas as funções recebem\n * a configuração como argumento, para se poderem testar sem o n8n.\n *\n * Duas famílias:\n *  - tráfego (sub-workflow guard-trafego, chamado pelos adaptadores públicos);\n *  - conteúdo e custo (chat-core, corre em todos os canais, incluindo o eval).\n */\n\n/** Motivos de bloqueio. São também os valores gravados em turns.guarda. */\nconst MOTIVOS_BLOQUEIO = [\n  'sessao_invalida',\n  'sessao_bloqueada',\n  'mensagem_vazia',\n  'mensagem_longa',\n  'quarentena',\n  'limite_sessao',\n  'teto_global',\n  'kill_switch_custo',\n];\n\nconst UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;\n\n/** Limpa o texto recebido: NFC, sem caracteres de controlo, espaços arrumados. */\nfunction normalizarTexto(texto) {\n  if (texto === null || texto === undefined) return '';\n  return String(texto)\n    .normalize('NFC')\n    .replace(/\\r\\n?/g, '\\n')\n    .replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F​-‏‪-‮⁠-⁤﻿]/g, '')\n    .replace(/[ \\t]+/g, ' ')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\n/** Minúsculas e sem acentos, para as regras não dependerem da grafia. */\nfunction paraComparar(texto) {\n  return String(texto)\n    .normalize('NFD')\n    .replace(/[̀-ͯ]/g, '')\n    .toLowerCase()\n    .replace(/\\s+/g, ' ');\n}\n\nfunction validarSessionId(id) {\n  return typeof id === 'string' && UUID_RE.test(id);\n}\n\n/*\n * Regras de quarentena. Cada regra tem um id (fica registado no turno) e\n * corre sobre o texto sem acentos e em minúsculas, exceto as marcadas com\n * `original: true`.\n *\n * Critério: apanhar pedidos dirigidos ao bot (as instruções dele, os\n * segredos dele, mudar o papel dele), não temas. Um visitante pode\n * perguntar como guardamos as credenciais dos clientes; isso não é ataque.\n */\nconst REGRAS_INJECAO = [\n  {\n    id: 'ignorar_instrucoes',\n    // \"Regras\" sozinho não chega (\"posso ignorar as regras do IVA?\"): só\n    // conta com um qualificador que aponte para as instruções do bot.\n    re: /\\b(ignor[ae]\\w*|esquec[ea]\\w*|desconsider[ae]\\w*|ignore|disregard|forget)\\b.{0,40}(\\b(instruc\\w*|instructions?|prompts?)\\b|\\b(regras|ordens|indicac\\w*|rules)\\b.{0,20}\\b(anteriores|acima|iniciais|previous|above|prior|que (te|lhe) deram)\\b|\\b(tudo|everything)\\b.{0,15}\\b(acima|anterior|above|before)\\b)/,\n  },\n  {\n    id: 'pedir_prompt',\n    re: /\\b(system ?prompt|prompt (do|de) sistema|prompt inicial|initial prompt|(instrucoes|regras|orientacoes) (do sistema|iniciais|internas|originais|secretas|que (te|lhe) (deram|foram dadas)|que recebeste)|your (instructions|rules|system message)|developer message)\\b/,\n  },\n  {\n    id: 'repetir_contexto',\n    re: /\\b(repete|repita|reescreve|reescreva|copia|copie|imprime|imprima|mostra|mostre|repeat|print|output|show)\\b.{0,30}\\b(tudo|todo o texto|o texto|everything|all|the text|the words)\\b.{0,20}\\b(acima|anterior|antes disto|above|before this)\\b/,\n  },\n  {\n    // Só segredos *do bot* (possessivo antes ou depois): \"a tua API key\",\n    // \"a password do vosso n8n\". \"Credenciais dos nossos clientes\" passa.\n    id: 'pedir_segredos',\n    re: (() => {\n      const dono = '(tua|teu|tuas|teus|vossa|vosso|vossas|vossos|your|do bot|do servidor|do n8n|da openai|do openrouter)';\n      const segredo =\n        '(api[ _-]?keys?|chaves? (da|de) api|chaves? secretas?|tokens?|passwords?|palavras?[- ]passe|senhas?|credenciais|credentials|secrets?|variaveis de ambiente|environment variables|\\\\.env)';\n      return new RegExp(`\\\\b${dono}\\\\b\\\\W+(\\\\w+\\\\W+){0,3}${segredo}\\\\b|\\\\b${segredo}\\\\W+(\\\\w+\\\\W+){0,3}${dono}\\\\b`);\n    })(),\n  },\n  {\n    id: 'mudar_papel',\n    re: /\\b(a partir de agora (es|seras|vais ser|passas a ser|ages)|finge (que es|ser)|faz de conta que es|comporta-te como|you are now|from now on you|act as|pretend (to be|you are)|roleplay|jailbreak|modo (dev|desenvolvedor|developer|sem restricoes)|developer mode|do anything now)\\b/,\n  },\n  {\n    id: 'marcadores_sistema',\n    original: true,\n    re: /(<\\|?\\s*(system|im_start|im_end|endoftext)\\s*\\|?>|\\[\\/?(system|inst)\\]|<\\/?system>|^\\s*#{1,6}\\s*(system|instructions?)\\s*:?\\s*$)/im,\n  },\n  {\n    // Base64 ou semelhante: um bloco longo sem espaços que mistura\n    // maiúsculas, minúsculas e dígitos (texto repetido não conta).\n    id: 'bloco_codificado',\n    original: true,\n    testa: (t) =>\n      (t.match(/[A-Za-z0-9+/]{120,}={0,2}/g) || []).some((b) => /[A-Z]/.test(b) && /[a-z]/.test(b) && /\\d/.test(b)),\n  },\n];\n\n/** Devolve as regras de quarentena que o texto aciona (lista vazia = limpo). */\nfunction detetarInjecao(texto) {\n  const original = String(texto || '');\n  const comparavel = paraComparar(original);\n  return REGRAS_INJECAO.filter((r) => {\n    const alvo = r.original ? original : comparavel;\n    return r.testa ? r.testa(alvo) : r.re.test(alvo);\n  }).map((r) => r.id);\n}\n\n/**\n * Guardas de conteúdo (chat-core). Corre em todos os canais.\n * `estado.quarentenasRecentes`: quarentenas da sessão na janela de bloqueio.\n */\nfunction avaliarConteudo(payload, cfg, estado) {\n  const quarentenas = (estado && estado.quarentenasRecentes) || 0;\n  const texto = normalizarTexto(payload && payload.texto);\n  const bloqueio = (motivo, regras) => ({ permitido: false, motivo, regras: regras || [], texto });\n\n  if (!validarSessionId(payload && payload.session_id)) return bloqueio('sessao_invalida');\n  if (quarentenas >= cfg.limites.quarentenasMaxPorSessao) return bloqueio('sessao_bloqueada');\n  if (!texto) return bloqueio('mensagem_vazia');\n  if (texto.length > cfg.limites.mensagemMaxChars) return bloqueio('mensagem_longa');\n\n  const regras = detetarInjecao(texto);\n  if (regras.length) return bloqueio('quarentena', regras);\n\n  return { permitido: true, motivo: null, regras: [], texto };\n}\n\n/**\n * Guardas de tráfego (guard-trafego). As contagens já incluem o pedido\n * atual, porque o contador é incrementado antes de se avaliar.\n * O teto global vem primeiro: é a proteção real, porque o session_id é\n * gerado no cliente e pode ser rodado.\n */\nfunction avaliarTrafego(contagens, cfg) {\n  const l = cfg.limites;\n  const c = contagens || {};\n  if ((c.globalMin || 0) > l.globalPorMinuto || (c.globalDia || 0) > l.globalPorDia) {\n    return { permitido: false, motivo: 'teto_global' };\n  }\n  if ((c.sessaoMin || 0) > l.sessaoPorMinuto || (c.sessaoDia || 0) > l.sessaoPorDia) {\n    return { permitido: false, motivo: 'limite_sessao' };\n  }\n  return { permitido: true, motivo: null };\n}\n\n/** Kill switch: bloqueia quando o custo estimado do dia chega ao teto. */\nfunction avaliarCusto(custoHojeEur, cfg) {\n  if (Number(custoHojeEur || 0) >= cfg.limites.custoDiarioMaxEur) {\n    return { permitido: false, motivo: 'kill_switch_custo' };\n  }\n  return { permitido: true, motivo: null };\n}\n\n/*\n * Estimativa de tokens. O AI Agent do n8n não passa o consumo real aos\n * nós seguintes, por isso o custo registado é estimado (~4 caracteres por\n * token). O valor real fica no painel do OpenRouter.\n */\nfunction estimarTokens(texto) {\n  return Math.ceil(String(texto || '').length / 4);\n}\n\nfunction estimarCustoEur(tokensEntrada, tokensSaida, cfg) {\n  const m = cfg.modelo;\n  const usd = (tokensEntrada * m.precoEntradaUsdPorMilhao + tokensSaida * m.precoSaidaUsdPorMilhao) / 1e6;\n  return Math.round(usd * cfg.usdParaEur * 1e6) / 1e6;\n}\n\n/** Resposta fixa e útil para cada bloqueio. Nunca chama o LLM. */\nfunction respostaFixa(motivo, cfg) {\n  const cal = `[${cfg.cal.textoLink}](${cfg.cal.url})`;\n  const email = cfg.site.emailContacto;\n  const textos = {\n    sessao_invalida: 'Não consegui ler esta conversa. Recarregue a página e tente outra vez.',\n    sessao_bloqueada: `Esta conversa foi pausada. Se quiser falar connosco, pode ${cal} ou escrever para ${email}.`,\n    mensagem_vazia: 'Não recebi nenhuma mensagem. Em que posso ajudar?',\n    mensagem_longa: `A mensagem é um pouco longa para este chat. Consegue resumi-la em poucas frases? Se preferir explicar com calma, pode ${cal}.`,\n    quarentena: `Não posso ajudar com esse pedido. Posso responder a perguntas sobre os serviços da Nautica AI ou ajudar a ${cal}.`,\n    limite_sessao: `Está a enviar mensagens muito depressa. Aguarde um minuto e tente outra vez. Se preferir, pode ${cal}.`,\n    teto_global: `De momento o assistente não está disponível. Pode ${cal} ou escrever para ${email}.`,\n    kill_switch_custo: `De momento o assistente não está disponível. Pode ${cal} ou escrever para ${email}.`,\n    fallback: `Desculpe, não consegui responder agora. Pode ${cal} ou escrever para ${email} e a nossa equipa responde-lhe.`,\n  };\n  return textos[motivo] || textos.fallback;\n}\n\n// ===== src/validacoes.js =====\n/**\n * Validação e normalização dos dados que o agente passa às tools\n * (registar_lead e avisar_humano).\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n * Os nomes não podem colidir com os dos outros ficheiros de /src, porque\n * o build pode juntar vários no mesmo Code node.\n */\n\nconst LIMITES_CAMPOS_LEAD = {\n  nome: 120,\n  empresa: 160,\n  setor: 120,\n  problema: 2000,\n  resumo: 4000,\n};\n\n/** Texto livre vindo do LLM: sem controlo, espaços arrumados, cortado ao limite. */\nfunction limparCampo(valor, max) {\n  if (valor === null || valor === undefined) return null;\n  const limpo = String(valor)\n    .normalize('NFC')\n    .replace(/[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]/g, '')\n    .replace(/[ \\t]+/g, ' ')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n  if (!limpo) return null;\n  return limpo.length > max ? limpo.slice(0, max).trim() : limpo;\n}\n\nfunction validarEmail(valor) {\n  if (!valor) return { valido: false, email: null };\n  const email = String(valor).trim().toLowerCase().replace(/^mailto:/, '');\n  const [local, dominio, ...resto] = email.split('@');\n  const valido =\n    resto.length === 0 &&\n    !!local &&\n    !!dominio &&\n    email.length <= 254 &&\n    local.length <= 64 &&\n    /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/.test(local) &&\n    !/^\\.|\\.$|\\.\\./.test(local) &&\n    /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z]{2,}$/.test(dominio);\n  return { valido, email: valido ? email : null };\n}\n\n/**\n * Normaliza para E.164. Sem indicativo, assume Portugal (+351) quando o\n * número tem 9 dígitos e começa por 2, 3 ou 9.\n */\nfunction normalizarTelefone(valor) {\n  if (!valor) return { valido: false, e164: null };\n  let s = String(valor).trim().replace(/[\\s.\\-()/]/g, '');\n  if (s.startsWith('00')) s = '+' + s.slice(2);\n  if (!/^\\+?\\d+$/.test(s)) return { valido: false, e164: null };\n\n  let e164 = null;\n  if (s.startsWith('+')) {\n    if (s.startsWith('+351')) {\n      if (/^\\+351[239]\\d{8}$/.test(s)) e164 = s;\n    } else if (/^\\+[1-9]\\d{7,14}$/.test(s)) {\n      e164 = s;\n    }\n  } else if (/^[239]\\d{8}$/.test(s)) {\n    e164 = '+351' + s;\n  }\n  return { valido: !!e164, e164 };\n}\n\n/**\n * Valida o pedido do registar_lead. Campos inválidos ficam a null e\n * são reportados em `avisos`, mas o lead é sempre gravado no Postgres:\n * só a sincronização com o Notion exige um contacto válido.\n */\nfunction validarLead(entrada) {\n  const e = entrada || {};\n  const avisos = [];\n  const email = validarEmail(e.email);\n  const telefone = normalizarTelefone(e.telefone);\n  if (e.email && !email.valido) avisos.push('email_invalido');\n  if (e.telefone && !telefone.valido) avisos.push('telefone_invalido');\n\n  const lead = {\n    nome: limparCampo(e.nome, LIMITES_CAMPOS_LEAD.nome),\n    empresa: limparCampo(e.empresa, LIMITES_CAMPOS_LEAD.empresa),\n    setor: limparCampo(e.setor, LIMITES_CAMPOS_LEAD.setor),\n    problema: limparCampo(e.problema, LIMITES_CAMPOS_LEAD.problema),\n    resumo: limparCampo(e.resumo, LIMITES_CAMPOS_LEAD.resumo),\n    email: email.email,\n    telefone: telefone.e164,\n  };\n  return { lead, contactoValido: email.valido || telefone.valido, avisos };\n}\n\n/** Motivo do avisar_humano: enum fechado, para a idempotência funcionar. */\nfunction validarMotivo(motivo, cfg) {\n  const m = String(motivo || '').trim().toLowerCase();\n  return cfg.motivosHandoff.includes(m) ? m : 'outro';\n}\n\n// ===== código deste nó =====\nconst e = $input.first().json;\nif (!validarSessionId(e.session_id)) {\n  return [{ json: { valido: false, motivo: 'sessao_invalida' } }];\n}\nconst r = validarLead(e);\nreturn [{ json: { valido: true, session_id: e.session_id, ...r } }];"
+      }
+    },
+    {
+      "id": "88b9dd72-7c3d-459e-a363-a1f5e492372a",
+      "name": "[GUARD] Sessão válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ebcd36d6-53ec-458b-aec2-eaf53c13bfd4",
+              "leftValue": "={{ $json.valido }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "03a8f896-93f1-4b46-a8c9-9e5bbaf7ee8a",
+      "name": "[TOOL] Gravar lead (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        660,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM registar_lead($1::jsonb)",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify({ session_id: $json.session_id, ...$json.lead }) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      }
+    },
+    {
+      "id": "5f11bca1-3817-49b3-aeb8-b008f1efab21",
+      "name": "[TOOL] Tem contacto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        -100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "dc0fcf7f-e016-407e-a5f4-396da31c6b47",
+              "leftValue": "={{ $json.sync_estado === 'pendente' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "a58a8e95-933e-45b0-ab06-6d3586a14f6e",
+      "name": "[TOOL] Reservar este lead",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1100,
+        -200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM reservar_leads_sync(($1::jsonb)->>0, 1)",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify([$json.session_id]) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "f7550eb3-974d-4bdb-aa22-2b8e31bc9e2b",
+      "name": "[TRIGGER] Novas tentativas (5 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "99280046-e945-42d4-ae54-c4566b4c2ef1",
+      "name": "[TOOL] Reservar pendentes",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1100,
+        200
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM reservar_leads_sync(NULL, 10)",
+        "options": {}
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "4cd1b900-5206-459c-ad8c-f7395bf87d24",
+      "name": "[TOOL] Há lead para sincronizar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "7fdb0002-0b20-4ddc-a2cd-973d4efe3b81",
+              "leftValue": "={{ Boolean($json.id) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f0b40b40-b7b8-41ca-aa8a-66295be90f5a",
+      "name": "[NORMALIZE] Preparar procura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).\n  // Enquanto for null, o kb-sync falha com uma mensagem clara.\n  kb: {\n    googleDocId: null,\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== src/notion.js =====\n/**\n * Corpos dos pedidos à API do Notion (versão 2022-06-28) para a\n * sincronização de leads: procura nos CRMs (só leitura) e criação ou\n * atualização da página na base \"Chatbot site\".\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\n/** Rich text do Notion: blocos de até 2000 caracteres (limite da API). */\nfunction textoNotion(valor) {\n  const s = valor === null || valor === undefined ? '' : String(valor);\n  const blocos = [];\n  for (let i = 0; i < s.length && blocos.length < 100; i += 2000) {\n    blocos.push({ type: 'text', text: { content: s.slice(i, i + 2000) } });\n  }\n  return blocos;\n}\n\n/**\n * Filtro \"email igual OU telefone contém\". O telefone compara-se pelos\n * últimos 9 dígitos: nos CRMs aparece como \"912345678\", \"+351912345678\"\n * e até \"++351912345678\".\n */\nfunction filtroContacto(contacto, tipoTelefone) {\n  const ou = [];\n  if (contacto.email) ou.push({ property: 'Email', email: { equals: contacto.email } });\n  const digitos = String(contacto.telefone || '').replace(/\\D/g, '');\n  if (digitos.length >= 9) {\n    ou.push({ property: 'Telefone', [tipoTelefone]: { contains: digitos.slice(-9) } });\n  }\n  if (!ou.length) return null;\n  return ou.length === 1 ? ou[0] : { or: ou };\n}\n\n/** Corpo de um POST /v1/databases/{id}/query. */\nfunction consultaContacto(contacto, tipoTelefone) {\n  const filtro = filtroContacto(contacto, tipoTelefone);\n  return filtro ? { filter: filtro, page_size: 5 } : null;\n}\n\nfunction urlNotion(id) {\n  return 'https://www.notion.so/' + String(id).replace(/-/g, '');\n}\n\n/**\n * Junta as respostas das consultas aos CRMs. Uma consulta que falhou fica\n * como \"desconhecido\" (null) e não apaga o que já se sabia.\n */\nfunction resumirCrms(respostas) {\n  let algumaOk = false;\n  const paginas = [];\n  for (const r of respostas) {\n    if (!r || !r.resposta || r.resposta.error || !Array.isArray(r.resposta.results)) continue;\n    algumaOk = true;\n    for (const p of r.resposta.results) paginas.push({ crm: r.crm, url: p.url || urlNotion(p.id) });\n  }\n  return {\n    crm_existente: algumaOk ? paginas.length > 0 : null,\n    crm_paginas: algumaOk ? paginas : null,\n  };\n}\n\n/** Primeira página encontrada numa resposta de query, ou null. */\nfunction primeiraPagina(resposta) {\n  if (!resposta || resposta.error || !Array.isArray(resposta.results) || !resposta.results.length) return null;\n  return resposta.results[0].id;\n}\n\n/**\n * Propriedades da página em \"Chatbot site\". Só envia campos com valor,\n * para nunca apagar o que alguém escreveu à mão. Origem e Estado só na\n * criação: depois, o Estado é da equipa.\n */\nfunction propriedadesLead(lead, opcoes) {\n  const o = opcoes || {};\n  const props = {\n    Nome: { title: textoNotion(lead.nome || lead.email || lead.telefone || 'Visitante do chat') },\n    'Sessão': { rich_text: textoNotion(lead.session_id) },\n  };\n  const texto = { Empresa: lead.empresa, Setor: lead.setor, Problema: lead.problema, 'Resumo da conversa': lead.resumo };\n  for (const [nome, valor] of Object.entries(texto)) {\n    if (valor) props[nome] = { rich_text: textoNotion(valor) };\n  }\n  if (lead.email) props.Email = { email: lead.email };\n  if (lead.telefone) props.Telefone = { phone_number: lead.telefone };\n  if (o.crm && o.crm.crm_existente !== null && o.crm.crm_existente !== undefined) {\n    props['Já no CRM'] = { checkbox: o.crm.crm_existente };\n    const primeira = (o.crm.crm_paginas || [])[0];\n    if (primeira) props['Página no CRM'] = { url: primeira.url };\n  }\n  if (o.criar) {\n    props.Origem = { select: { name: 'Chatbot' } };\n    props.Estado = { select: { name: 'Novo' } };\n  }\n  return props;\n}\n\n/**\n * Pedido de escrita: PATCH da página existente ou POST de uma nova.\n * Devolve { metodo, url, corpo }.\n */\nfunction pedidoGravarLead(lead, paginaId, crm, cfg) {\n  if (paginaId) {\n    return {\n      metodo: 'PATCH',\n      url: 'https://api.notion.com/v1/pages/' + paginaId,\n      corpo: { properties: propriedadesLead(lead, { crm, criar: false }) },\n    };\n  }\n  return {\n    metodo: 'POST',\n    url: 'https://api.notion.com/v1/pages',\n    corpo: {\n      parent: { database_id: cfg.notion.chatbotSite },\n      properties: propriedadesLead(lead, { crm, criar: true }),\n    },\n  };\n}\n\n/** Mensagem curta de um erro devolvido pelo nó HTTP (para sync_ultimo_erro). */\nfunction erroNotion(resposta) {\n  if (!resposta) return 'sem resposta';\n  if (resposta.error) {\n    const e = resposta.error;\n    return String(e.message || e.description || JSON.stringify(e)).slice(0, 500);\n  }\n  if (resposta.object === 'error') return `${resposta.status || ''} ${resposta.code || ''}: ${resposta.message || ''}`.trim();\n  return null;\n}\n\n// ===== código deste nó =====\n// Uma consulta por CRM dos comerciais (só leitura) e uma à base do bot.\nconst lead = $json;\nconst contacto = { email: lead.email, telefone: lead.telefone };\nreturn {\n  json: {\n    lead,\n    consultas: CONFIG.notion.crms.map((c) => ({\n      crm: c.nome,\n      url: 'https://api.notion.com/v1/databases/' + c.id + '/query',\n      corpo: consultaContacto(contacto, c.tipoTelefone),\n    })),\n    urlChatbot: 'https://api.notion.com/v1/databases/' + CONFIG.notion.chatbotSite + '/query',\n    corpoChatbot: consultaContacto(contacto, 'phone_number'),\n  },\n};"
+      }
+    },
+    {
+      "id": "b709378a-b8a1-4a9e-a534-29464c660dab",
+      "name": "[TOOL] Procurar em Clientes Site (só leitura)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('[NORMALIZE] Preparar procura').item.json.consultas[0].url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('[NORMALIZE] Preparar procura').item.json.consultas[0].corpo) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "notionApi": {
+          "id": null,
+          "name": "Notion CRM leitura"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "6db6526c-03d6-4c4d-a61f-19a4c49e1e47",
+      "name": "[TOOL] Procurar em CRM Nautica AI (só leitura)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('[NORMALIZE] Preparar procura').item.json.consultas[1].url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('[NORMALIZE] Preparar procura').item.json.consultas[1].corpo) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "notionApi": {
+          "id": null,
+          "name": "Notion CRM leitura"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "984fcf4a-35cd-43e5-ac1c-7c0196a09e89",
+      "name": "[TOOL] Procurar no Chatbot site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        -100
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('[NORMALIZE] Preparar procura').item.json.urlChatbot }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($('[NORMALIZE] Preparar procura').item.json.corpoChatbot) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "notionApi": {
+          "id": null,
+          "name": "Notion chatbot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "353e07b6-3c72-42da-a45e-35b43549a426",
+      "name": "[NORMALIZE] Montar página",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).\n  // Enquanto for null, o kb-sync falha com uma mensagem clara.\n  kb: {\n    googleDocId: null,\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== src/notion.js =====\n/**\n * Corpos dos pedidos à API do Notion (versão 2022-06-28) para a\n * sincronização de leads: procura nos CRMs (só leitura) e criação ou\n * atualização da página na base \"Chatbot site\".\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\n/** Rich text do Notion: blocos de até 2000 caracteres (limite da API). */\nfunction textoNotion(valor) {\n  const s = valor === null || valor === undefined ? '' : String(valor);\n  const blocos = [];\n  for (let i = 0; i < s.length && blocos.length < 100; i += 2000) {\n    blocos.push({ type: 'text', text: { content: s.slice(i, i + 2000) } });\n  }\n  return blocos;\n}\n\n/**\n * Filtro \"email igual OU telefone contém\". O telefone compara-se pelos\n * últimos 9 dígitos: nos CRMs aparece como \"912345678\", \"+351912345678\"\n * e até \"++351912345678\".\n */\nfunction filtroContacto(contacto, tipoTelefone) {\n  const ou = [];\n  if (contacto.email) ou.push({ property: 'Email', email: { equals: contacto.email } });\n  const digitos = String(contacto.telefone || '').replace(/\\D/g, '');\n  if (digitos.length >= 9) {\n    ou.push({ property: 'Telefone', [tipoTelefone]: { contains: digitos.slice(-9) } });\n  }\n  if (!ou.length) return null;\n  return ou.length === 1 ? ou[0] : { or: ou };\n}\n\n/** Corpo de um POST /v1/databases/{id}/query. */\nfunction consultaContacto(contacto, tipoTelefone) {\n  const filtro = filtroContacto(contacto, tipoTelefone);\n  return filtro ? { filter: filtro, page_size: 5 } : null;\n}\n\nfunction urlNotion(id) {\n  return 'https://www.notion.so/' + String(id).replace(/-/g, '');\n}\n\n/**\n * Junta as respostas das consultas aos CRMs. Uma consulta que falhou fica\n * como \"desconhecido\" (null) e não apaga o que já se sabia.\n */\nfunction resumirCrms(respostas) {\n  let algumaOk = false;\n  const paginas = [];\n  for (const r of respostas) {\n    if (!r || !r.resposta || r.resposta.error || !Array.isArray(r.resposta.results)) continue;\n    algumaOk = true;\n    for (const p of r.resposta.results) paginas.push({ crm: r.crm, url: p.url || urlNotion(p.id) });\n  }\n  return {\n    crm_existente: algumaOk ? paginas.length > 0 : null,\n    crm_paginas: algumaOk ? paginas : null,\n  };\n}\n\n/** Primeira página encontrada numa resposta de query, ou null. */\nfunction primeiraPagina(resposta) {\n  if (!resposta || resposta.error || !Array.isArray(resposta.results) || !resposta.results.length) return null;\n  return resposta.results[0].id;\n}\n\n/**\n * Propriedades da página em \"Chatbot site\". Só envia campos com valor,\n * para nunca apagar o que alguém escreveu à mão. Origem e Estado só na\n * criação: depois, o Estado é da equipa.\n */\nfunction propriedadesLead(lead, opcoes) {\n  const o = opcoes || {};\n  const props = {\n    Nome: { title: textoNotion(lead.nome || lead.email || lead.telefone || 'Visitante do chat') },\n    'Sessão': { rich_text: textoNotion(lead.session_id) },\n  };\n  const texto = { Empresa: lead.empresa, Setor: lead.setor, Problema: lead.problema, 'Resumo da conversa': lead.resumo };\n  for (const [nome, valor] of Object.entries(texto)) {\n    if (valor) props[nome] = { rich_text: textoNotion(valor) };\n  }\n  if (lead.email) props.Email = { email: lead.email };\n  if (lead.telefone) props.Telefone = { phone_number: lead.telefone };\n  if (o.crm && o.crm.crm_existente !== null && o.crm.crm_existente !== undefined) {\n    props['Já no CRM'] = { checkbox: o.crm.crm_existente };\n    const primeira = (o.crm.crm_paginas || [])[0];\n    if (primeira) props['Página no CRM'] = { url: primeira.url };\n  }\n  if (o.criar) {\n    props.Origem = { select: { name: 'Chatbot' } };\n    props.Estado = { select: { name: 'Novo' } };\n  }\n  return props;\n}\n\n/**\n * Pedido de escrita: PATCH da página existente ou POST de uma nova.\n * Devolve { metodo, url, corpo }.\n */\nfunction pedidoGravarLead(lead, paginaId, crm, cfg) {\n  if (paginaId) {\n    return {\n      metodo: 'PATCH',\n      url: 'https://api.notion.com/v1/pages/' + paginaId,\n      corpo: { properties: propriedadesLead(lead, { crm, criar: false }) },\n    };\n  }\n  return {\n    metodo: 'POST',\n    url: 'https://api.notion.com/v1/pages',\n    corpo: {\n      parent: { database_id: cfg.notion.chatbotSite },\n      properties: propriedadesLead(lead, { crm, criar: true }),\n    },\n  };\n}\n\n/** Mensagem curta de um erro devolvido pelo nó HTTP (para sync_ultimo_erro). */\nfunction erroNotion(resposta) {\n  if (!resposta) return 'sem resposta';\n  if (resposta.error) {\n    const e = resposta.error;\n    return String(e.message || e.description || JSON.stringify(e)).slice(0, 500);\n  }\n  if (resposta.object === 'error') return `${resposta.status || ''} ${resposta.code || ''}: ${resposta.message || ''}`.trim();\n  return null;\n}\n\n// ===== código deste nó =====\nconst prep = $('[NORMALIZE] Preparar procura').item.json;\nconst respostas = [\n  { crm: prep.consultas[0].crm, resposta: $('[TOOL] Procurar em Clientes Site (só leitura)').item.json },\n  { crm: prep.consultas[1].crm, resposta: $('[TOOL] Procurar em CRM Nautica AI (só leitura)').item.json },\n];\nconst crm = resumirCrms(respostas);\n\n// Página já conhecida no Postgres; senão, a encontrada pelo email/telefone.\nconst paginaId = prep.lead.notion_page_id || primeiraPagina($('[TOOL] Procurar no Chatbot site').item.json);\nreturn { json: { lead_id: prep.lead.id, crm, pedido: pedidoGravarLead(prep.lead, paginaId, crm, CONFIG) } };"
+      }
+    },
+    {
+      "id": "4f2696ac-bbb6-4c5b-a79f-75628ac06f25",
+      "name": "[TOOL] Gravar no Chatbot site",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        -100
+      ],
+      "parameters": {
+        "method": "={{ $json.pedido.metodo }}",
+        "url": "={{ $json.pedido.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.pedido.corpo) }}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "notionApi": {
+          "id": null,
+          "name": "Notion chatbot"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ec201c20-2605-4107-a0ab-abd76419760c",
+      "name": "[NORMALIZE] Resultado da sync",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/notion.js =====\n/**\n * Corpos dos pedidos à API do Notion (versão 2022-06-28) para a\n * sincronização de leads: procura nos CRMs (só leitura) e criação ou\n * atualização da página na base \"Chatbot site\".\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\n/** Rich text do Notion: blocos de até 2000 caracteres (limite da API). */\nfunction textoNotion(valor) {\n  const s = valor === null || valor === undefined ? '' : String(valor);\n  const blocos = [];\n  for (let i = 0; i < s.length && blocos.length < 100; i += 2000) {\n    blocos.push({ type: 'text', text: { content: s.slice(i, i + 2000) } });\n  }\n  return blocos;\n}\n\n/**\n * Filtro \"email igual OU telefone contém\". O telefone compara-se pelos\n * últimos 9 dígitos: nos CRMs aparece como \"912345678\", \"+351912345678\"\n * e até \"++351912345678\".\n */\nfunction filtroContacto(contacto, tipoTelefone) {\n  const ou = [];\n  if (contacto.email) ou.push({ property: 'Email', email: { equals: contacto.email } });\n  const digitos = String(contacto.telefone || '').replace(/\\D/g, '');\n  if (digitos.length >= 9) {\n    ou.push({ property: 'Telefone', [tipoTelefone]: { contains: digitos.slice(-9) } });\n  }\n  if (!ou.length) return null;\n  return ou.length === 1 ? ou[0] : { or: ou };\n}\n\n/** Corpo de um POST /v1/databases/{id}/query. */\nfunction consultaContacto(contacto, tipoTelefone) {\n  const filtro = filtroContacto(contacto, tipoTelefone);\n  return filtro ? { filter: filtro, page_size: 5 } : null;\n}\n\nfunction urlNotion(id) {\n  return 'https://www.notion.so/' + String(id).replace(/-/g, '');\n}\n\n/**\n * Junta as respostas das consultas aos CRMs. Uma consulta que falhou fica\n * como \"desconhecido\" (null) e não apaga o que já se sabia.\n */\nfunction resumirCrms(respostas) {\n  let algumaOk = false;\n  const paginas = [];\n  for (const r of respostas) {\n    if (!r || !r.resposta || r.resposta.error || !Array.isArray(r.resposta.results)) continue;\n    algumaOk = true;\n    for (const p of r.resposta.results) paginas.push({ crm: r.crm, url: p.url || urlNotion(p.id) });\n  }\n  return {\n    crm_existente: algumaOk ? paginas.length > 0 : null,\n    crm_paginas: algumaOk ? paginas : null,\n  };\n}\n\n/** Primeira página encontrada numa resposta de query, ou null. */\nfunction primeiraPagina(resposta) {\n  if (!resposta || resposta.error || !Array.isArray(resposta.results) || !resposta.results.length) return null;\n  return resposta.results[0].id;\n}\n\n/**\n * Propriedades da página em \"Chatbot site\". Só envia campos com valor,\n * para nunca apagar o que alguém escreveu à mão. Origem e Estado só na\n * criação: depois, o Estado é da equipa.\n */\nfunction propriedadesLead(lead, opcoes) {\n  const o = opcoes || {};\n  const props = {\n    Nome: { title: textoNotion(lead.nome || lead.email || lead.telefone || 'Visitante do chat') },\n    'Sessão': { rich_text: textoNotion(lead.session_id) },\n  };\n  const texto = { Empresa: lead.empresa, Setor: lead.setor, Problema: lead.problema, 'Resumo da conversa': lead.resumo };\n  for (const [nome, valor] of Object.entries(texto)) {\n    if (valor) props[nome] = { rich_text: textoNotion(valor) };\n  }\n  if (lead.email) props.Email = { email: lead.email };\n  if (lead.telefone) props.Telefone = { phone_number: lead.telefone };\n  if (o.crm && o.crm.crm_existente !== null && o.crm.crm_existente !== undefined) {\n    props['Já no CRM'] = { checkbox: o.crm.crm_existente };\n    const primeira = (o.crm.crm_paginas || [])[0];\n    if (primeira) props['Página no CRM'] = { url: primeira.url };\n  }\n  if (o.criar) {\n    props.Origem = { select: { name: 'Chatbot' } };\n    props.Estado = { select: { name: 'Novo' } };\n  }\n  return props;\n}\n\n/**\n * Pedido de escrita: PATCH da página existente ou POST de uma nova.\n * Devolve { metodo, url, corpo }.\n */\nfunction pedidoGravarLead(lead, paginaId, crm, cfg) {\n  if (paginaId) {\n    return {\n      metodo: 'PATCH',\n      url: 'https://api.notion.com/v1/pages/' + paginaId,\n      corpo: { properties: propriedadesLead(lead, { crm, criar: false }) },\n    };\n  }\n  return {\n    metodo: 'POST',\n    url: 'https://api.notion.com/v1/pages',\n    corpo: {\n      parent: { database_id: cfg.notion.chatbotSite },\n      properties: propriedadesLead(lead, { crm, criar: true }),\n    },\n  };\n}\n\n/** Mensagem curta de um erro devolvido pelo nó HTTP (para sync_ultimo_erro). */\nfunction erroNotion(resposta) {\n  if (!resposta) return 'sem resposta';\n  if (resposta.error) {\n    const e = resposta.error;\n    return String(e.message || e.description || JSON.stringify(e)).slice(0, 500);\n  }\n  if (resposta.object === 'error') return `${resposta.status || ''} ${resposta.code || ''}: ${resposta.message || ''}`.trim();\n  return null;\n}\n\n// ===== código deste nó =====\nconst m = $('[NORMALIZE] Montar página').item.json;\nconst r = $json;\nconst erro = erroNotion(r) || (r.id ? null : 'resposta do Notion sem id');\nreturn {\n  json: {\n    id: m.lead_id,\n    ok: !erro,\n    notion_page_id: erro ? null : r.id,\n    crm_existente: m.crm.crm_existente,\n    crm_paginas: m.crm.crm_paginas,\n    erro,\n  },\n};"
+      }
+    },
+    {
+      "id": "7a106d0b-2a91-4101-add5-4005e3ca1362",
+      "name": "[LOGGING] Concluir sync",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3080,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, sync_estado, sync_tentativas FROM concluir_sync_lead($1::jsonb)",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify($json) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      }
+    },
+    {
+      "id": "16439fba-5d84-41b8-ae9d-cae431f91c31",
+      "name": "[OUTPUT] Resposta ao agente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Só faz sentido na chamada da tool; nas novas tentativas agendadas o\n// nó de validação não correu e a resposta é ignorada.\nlet v;\ntry { v = $('[GUARD] Validar lead').first().json; } catch (e) { return [{ json: { resposta: 'ok' } }]; }\nif (!v.valido) return [{ json: { resposta: 'Não foi possível guardar os dados desta conversa.' } }];\n\nlet estado = null;\ntry { estado = $('[TOOL] Gravar lead (Postgres)').first().json.sync_estado; } catch (e) { /* sem gravação */ }\n\nconst partes = ['Dados do visitante guardados.'];\nif (v.avisos.includes('email_invalido')) partes.push('O email indicado não parece válido: confirme-o com o visitante.');\nif (v.avisos.includes('telefone_invalido')) partes.push('O telefone indicado não parece válido: confirme-o com o visitante.');\nif (estado === 'sem_contacto') partes.push('Ainda não há email nem telefone válidos: sem um deles, a equipa não consegue responder.');\nreturn [{ json: { resposta: partes.join(' ') } }];\n"
+      }
+    }
+  ],
+  "connections": {
+    "[TRIGGER] Chamada do agente": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] Validar lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Validar lead": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] Sessão válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Sessão válida?": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Gravar lead (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "[OUTPUT] Resposta ao agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Gravar lead (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Tem contacto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Tem contacto?": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Reservar este lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "[OUTPUT] Resposta ao agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Reservar este lead": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Há lead para sincronizar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TRIGGER] Novas tentativas (5 min)": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Reservar pendentes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Reservar pendentes": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Há lead para sincronizar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Há lead para sincronizar?": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Preparar procura",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "[OUTPUT] Resposta ao agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Preparar procura": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Procurar em Clientes Site (só leitura)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Procurar em Clientes Site (só leitura)": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Procurar em CRM Nautica AI (só leitura)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Procurar em CRM Nautica AI (só leitura)": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Procurar no Chatbot site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Procurar no Chatbot site": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Montar página",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Montar página": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Gravar no Chatbot site",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Gravar no Chatbot site": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Resultado da sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Resultado da sync": {
+      "main": [
+        [
+          {
+            "node": "[LOGGING] Concluir sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[LOGGING] Concluir sync": {
+      "main": [
+        [
+          {
+            "node": "[OUTPUT] Resposta ao agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "Europe/Lisbon",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

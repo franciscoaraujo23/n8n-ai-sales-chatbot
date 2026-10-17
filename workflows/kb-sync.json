@@ -1,0 +1,337 @@
+{
+  "name": "Chatbot – kb-sync",
+  "nodes": [
+    {
+      "id": "1ac6e475-83e8-4217-ac3e-d9b407a1b971",
+      "name": "[TRIGGER] A cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "53f4d035-a5e8-4018-a311-6402ce305d48",
+      "name": "[NORMALIZE] Configuração",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).\n  // Enquanto for null, o kb-sync falha com uma mensagem clara.\n  kb: {\n    googleDocId: null,\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== código deste nó =====\nif (!CONFIG.kb.googleDocId) {\n  throw new Error('Falta o ID do Google Doc da base de conhecimento (CONFIG.kb.googleDocId em src/config.js).');\n}\nreturn [{ json: { docId: CONFIG.kb.googleDocId } }];"
+      }
+    },
+    {
+      "id": "1c1c3423-05ee-4c13-a806-de93236689c9",
+      "name": "[NORMALIZE] Exportar Google Doc",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}/export",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "mimeType",
+              "value": "text/markdown"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000,
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "markdown"
+            }
+          }
+        }
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": null,
+          "name": "Google Drive kb"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "b1efd37e-3fbb-429b-a0ea-a3d4a01006c1",
+      "name": "[GUARD] Validar contrato",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/kb-contrato.js =====\n/**\n * Contrato da base de conhecimento.\n *\n * O kb-sync só ativa uma versão nova se tiver todos estes títulos de\n * nível 2, por esta ordem. Títulos a mais são permitidos (ficam como\n * aviso); títulos em falta, repetidos ou fora de ordem bloqueiam a\n * ativação e geram um alerta.\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\nconst TITULOS_KB = [\n  'Sobre a Nautica',\n  'Serviços',\n  'Para quem é e para quem não é',\n  'Processo',\n  'Preços',\n  'Chamada de diagnóstico',\n  'Objeções e respostas',\n  'Perguntas frequentes',\n  'Credibilidade',\n  'O que o bot nunca deve dizer',\n  'Contactos e horário',\n];\n\n// Abaixo disto é quase de certeza um documento vazio ou uma exportação falhada.\nconst KB_TAMANHO_MINIMO = 500;\n\n/**\n * Forma canónica do texto, usada para o hash: mudanças só de espaços ou\n * de quebras de linha não criam versões novas.\n */\nfunction normalizarKb(texto) {\n  return String(texto || '')\n    .normalize('NFC')\n    .replace(/^﻿/, '')\n    .replace(/\\r\\n?/g, '\\n')\n    .replace(/[ \\t]+$/gm, '')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\n\n/** Título comparável: sem negrito, sem \"#\" finais, minúsculas, espaços únicos. */\nfunction chaveTitulo(titulo) {\n  return String(titulo)\n    .replace(/\\*\\*|__/g, '')\n    .replace(/\\\\(.)/g, '$1')\n    .replace(/\\s*#+\\s*$/, '')\n    .replace(/\\s+/g, ' ')\n    .trim()\n    .normalize('NFC')\n    .toLowerCase();\n}\n\n/** Títulos \"## …\" do documento, pela ordem em que aparecem. */\nfunction extrairTitulos(texto) {\n  const titulos = [];\n  const re = /^##[ \\t]+(.+)$/gm;\n  let m;\n  while ((m = re.exec(texto)) !== null) titulos.push(m[1].trim());\n  return titulos;\n}\n\nfunction validarKb(texto) {\n  const normalizado = normalizarKb(texto);\n  const encontrados = extrairTitulos(normalizado).map(chaveTitulo);\n  const esperados = TITULOS_KB.map(chaveTitulo);\n\n  const faltam = TITULOS_KB.filter((t, i) => !encontrados.includes(esperados[i]));\n  const repetidos = TITULOS_KB.filter((t, i) => encontrados.filter((e) => e === esperados[i]).length > 1);\n  const extra = encontrados.filter((e) => !esperados.includes(e));\n\n  const posicoes = esperados.map((e) => encontrados.indexOf(e)).filter((p) => p >= 0);\n  const foraDeOrdem = posicoes.some((p, i) => i > 0 && p < posicoes[i - 1]);\n  const curto = normalizado.length < KB_TAMANHO_MINIMO;\n\n  const erros = [];\n  if (faltam.length) erros.push('faltam: ' + faltam.join(', '));\n  if (repetidos.length) erros.push('repetidos: ' + repetidos.join(', '));\n  if (foraDeOrdem) erros.push('títulos fora de ordem');\n  if (curto) erros.push(`documento com menos de ${KB_TAMANHO_MINIMO} caracteres`);\n\n  return {\n    valido: erros.length === 0,\n    erros,\n    avisos: extra.length ? ['títulos extra: ' + extra.join(', ')] : [],\n    texto: normalizado,\n  };\n}\n\n// ===== código deste nó =====\nconst r = validarKb($input.first().json.markdown);\nreturn [{\n  json: {\n    origem: $('[NORMALIZE] Configuração').first().json.docId,\n    texto: r.texto,\n    valido: r.valido,\n    erros: r.erros,\n    avisos: r.avisos,\n  },\n}];"
+      }
+    },
+    {
+      "id": "72ff9267-ae6c-4341-afc0-760e49a27df4",
+      "name": "[NORMALIZE] Calcular hash",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "action": "hash",
+        "type": "SHA256",
+        "value": "={{ $json.texto }}",
+        "dataPropertyName": "hash"
+      }
+    },
+    {
+      "id": "9a6579aa-5d2e-4d08-ab0a-479ed009d39d",
+      "name": "[LOGGING] Registar versão",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT k.kb_id, k.nova, k.ativada, v.hash, v.titulos_ok, v.alertado, v.erros\nFROM (SELECT $1::jsonb AS p) AS x\nCROSS JOIN LATERAL registar_kb(\n  p->>'hash', p->>'texto', p->>'origem', (p->>'valido')::boolean,\n  ARRAY(SELECT jsonb_array_elements_text(p->'erros'))\n) AS k\nJOIN kb_versions v ON v.id = k.kb_id",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify({ hash: $json.hash, texto: $json.texto, origem: $json.origem, valido: $json.valido, erros: $json.erros }) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      }
+    },
+    {
+      "id": "6cd17fcc-7b79-43ae-a029-95718bfa402f",
+      "name": "[GUARD] Versão inválida por alertar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c028b718-35d2-487f-af62-15dd33820757",
+              "leftValue": "={{ !$json.titulos_ok && !$json.alertado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "201eb6f0-c74d-4e61-a880-4b38964227ff",
+      "name": "[NORMALIZE] Mensagem de alerta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/mensagens.js =====\n/**\n * Mensagens para o Discord (leads e alertas internos).\n *\n * Texto vindo do visitante é neutralizado: um \"@everyone\" escrito no chat\n * não pode notificar o canal inteiro. O Discord corta acima de 2000\n * caracteres, por isso tudo é limitado aqui.\n *\n * JavaScript puro, sem require, copiado para os Code nodes pelo build.\n */\n\nconst LIMITE_DISCORD = 2000;\n\nconst ROTULOS_MOTIVO = {\n  lead_qualificado: 'Lead qualificado',\n  pede_humano: 'Pede para falar com uma pessoa',\n  reclamacao: 'Reclamação',\n  outro: 'Outro',\n};\n\n/** Neutraliza menções e marcação que o visitante possa ter escrito. */\nfunction semMencoes(valor) {\n  return String(valor === null || valor === undefined ? '' : valor)\n    .replace(/@(everyone|here)/gi, '@​$1')\n    .replace(/<(@[!&]?|#)(\\d+)>/g, '<$1​$2>')\n    .replace(/```/g, \"'''\");\n}\n\nfunction cortar(texto, max) {\n  const t = String(texto);\n  return t.length > max ? t.slice(0, max - 1) + '…' : t;\n}\n\n/**\n * Aviso de handoff para o canal de leads.\n * `dados`: { motivo, resumo, session_id, nome, empresa, setor, email,\n *            telefone, problema, crm_existente, crm_paginas, notion_page_id }\n */\nfunction mensagemHandoff(dados) {\n  const d = dados || {};\n  const linhas = [`**Chatbot do site — ${ROTULOS_MOTIVO[d.motivo] || ROTULOS_MOTIVO.outro}**`];\n\n  const quem = [d.nome, d.empresa, d.setor].filter(Boolean).map(semMencoes).join(' · ');\n  if (quem) linhas.push(quem);\n  const contacto = [d.email, d.telefone].filter(Boolean).map(semMencoes).join(' · ');\n  linhas.push(contacto ? `Contacto: ${contacto}` : 'Contacto: ainda não deixou');\n\n  if (d.crm_existente) {\n    const paginas = (d.crm_paginas || []).map((p) => `${p.crm} (<${p.url}>)`).join(', ');\n    linhas.push(`⚠️ Já existe no CRM dos comerciais: ${paginas || 'sim'}`);\n  }\n  if (d.problema) linhas.push(`**Problema:** ${cortar(semMencoes(d.problema), 400)}`);\n\n  const rodape = [];\n  if (d.notion_page_id) rodape.push(`Notion: <https://www.notion.so/${String(d.notion_page_id).replace(/-/g, '')}>`);\n  rodape.push(`Sessão: ${semMencoes(d.session_id)}`);\n\n  const fixo = linhas.join('\\n') + '\\n**Resumo:** ' + '\\n' + rodape.join(' · ');\n  const espaco = LIMITE_DISCORD - fixo.length;\n  const resumo = cortar(semMencoes(d.resumo || '(sem resumo)'), Math.max(espaco, 50));\n\n  return cortar([...linhas, `**Resumo:** ${resumo}`, rodape.join(' · ')].join('\\n'), LIMITE_DISCORD);\n}\n\n/** Alerta de base de conhecimento inválida (canal de erros). */\nfunction mensagemKbInvalida(erros, hash) {\n  const lista = (erros || []).map((e) => `• ${e}`).join('\\n');\n  return cortar(\n    '**kb-sync: a versão nova da base de conhecimento NÃO foi ativada.**\\n' +\n      'O bot continua com a versão anterior. Corrigir o Google Doc:\\n' +\n      lista +\n      `\\n(hash ${String(hash || '').slice(0, 12)})`,\n    LIMITE_DISCORD\n  );\n}\n\n// ===== código deste nó =====\nconst v = $input.first().json;\nreturn [{ json: { kb_id: v.kb_id, mensagem: mensagemKbInvalida(v.erros, v.hash) } }];"
+      }
+    },
+    {
+      "id": "d75d3848-7595-47f4-a410-f94b53e84571",
+      "name": "[OUTPUT] Discord – erros",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -100
+      ],
+      "parameters": {
+        "authentication": "webhook",
+        "content": "={{ $json.mensagem }}",
+        "options": {}
+      },
+      "credentials": {
+        "discordWebhookApi": {
+          "id": null,
+          "name": "Discord chatbot erros"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "3d27223e-9c5d-48f3-a72c-95e9dd89cca0",
+      "name": "[LOGGING] Marcar alertado",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1980,
+        -100
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE kb_versions SET alertado = true\nFROM (SELECT $1::jsonb AS p) AS x\nWHERE kb_versions.id = (p->>'kb_id')::bigint AND (p->>'ok')::boolean\nRETURNING kb_versions.id",
+        "options": {
+          "queryReplacement": "={{ [ JSON.stringify({ kb_id: $('[NORMALIZE] Mensagem de alerta').first().json.kb_id, ok: !$json.error }) ] }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": null,
+          "name": "Postgres chatbot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "[TRIGGER] A cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Configuração",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Configuração": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Exportar Google Doc",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Exportar Google Doc": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] Validar contrato",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Validar contrato": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Calcular hash",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Calcular hash": {
+      "main": [
+        [
+          {
+            "node": "[LOGGING] Registar versão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[LOGGING] Registar versão": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] Versão inválida por alertar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Versão inválida por alertar?": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Mensagem de alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Mensagem de alerta": {
+      "main": [
+        [
+          {
+            "node": "[OUTPUT] Discord – erros",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[OUTPUT] Discord – erros": {
+      "main": [
+        [
+          {
+            "node": "[LOGGING] Marcar alertado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "Europe/Lisbon",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

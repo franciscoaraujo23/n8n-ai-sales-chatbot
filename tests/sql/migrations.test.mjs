@@ -151,3 +151,93 @@ test('limpar_dados_antigos respeita as retenções e a memória do agente', asyn
   assert.deepEqual(r, { rate_limits: 1, turns: 1, leads: 1, errors: 0, chat_memoria: 1 });
   assert.equal((await um(db, 'SELECT session_id FROM chat_memoria')).session_id, 'recente');
 });
+
+// --- 002: registo e sincronização de leads ---------------------------------
+
+const registar = (db, p) => um(db, 'SELECT * FROM registar_lead($1::jsonb)', [JSON.stringify(p)]);
+const reservar = async (db, sessao) =>
+  (await db.query('SELECT * FROM reservar_leads_sync($1, 10)', [sessao ?? null])).rows;
+const concluir = (db, p) => um(db, 'SELECT * FROM concluir_sync_lead($1::jsonb)', [JSON.stringify(p)]);
+
+test('registar_lead: upsert sem apagar campos e estado conforme o contacto', async () => {
+  const db = await baseNova();
+  let l = await registar(db, { session_id: SESSAO, nome: 'Ana', empresa: 'Clínica X' });
+  assert.equal(l.sync_estado, 'sem_contacto');
+
+  l = await registar(db, { session_id: SESSAO, email: 'ana@x.pt', nome: null, empresa: '' });
+  assert.deepEqual([l.nome, l.empresa, l.email, l.sync_estado], ['Ana', 'Clínica X', 'ana@x.pt', 'pendente']);
+  assert.equal((await um(db, 'SELECT count(*)::int AS n FROM leads')).n, 1);
+
+  await assert.rejects(registar(db, { session_id: 's2', email: 'mau' }));
+});
+
+test('sincronização: reserva exclusiva, sucesso e página nunca duplicada', async () => {
+  const db = await baseNova();
+  await registar(db, { session_id: SESSAO, email: 'ana@x.pt' });
+
+  const [r] = await reservar(db, SESSAO);
+  assert.equal(r.session_id, SESSAO);
+  assert.deepEqual(await reservar(db, SESSAO), [], 'reservado: a tool não volta a pegar');
+  assert.deepEqual(await reservar(db, null), [], 'reservado: o agendamento também não');
+
+  const fim = await concluir(db, {
+    id: r.id, ok: true, notion_page_id: 'pag-1', crm_existente: true,
+    crm_paginas: [{ crm: 'Clientes Site', url: 'https://www.notion.so/abc' }],
+  });
+  assert.deepEqual([fim.sync_estado, fim.notion_page_id, fim.crm_existente, fim.sync_proxima_em],
+                   ['sincronizado', 'pag-1', true, null]);
+  assert.equal(fim.crm_paginas.length, 1);
+
+  // Dados novos voltam a pendente; o notion_page_id mantém-se (a página é atualizada).
+  const novo = await registar(db, { session_id: SESSAO, telefone: '+351912345678' });
+  assert.deepEqual([novo.sync_estado, novo.notion_page_id], ['pendente', 'pag-1']);
+});
+
+test('sincronização: dados mudados durante a reserva não se perdem', async () => {
+  const db = await baseNova();
+  await registar(db, { session_id: SESSAO, email: 'ana@x.pt' });
+  const [r] = await reservar(db, SESSAO);
+
+  // O agente acrescenta dados enquanto a sincronização corre: a reserva é respeitada.
+  const durante = await registar(db, { session_id: SESSAO, empresa: 'Clínica X' });
+  assert.ok(new Date(durante.sync_proxima_em) > new Date(), 'mantém a reserva');
+  await db.query(`UPDATE leads SET atualizado_em = now() + interval '1 second'`);
+
+  const fim = await concluir(db, { id: r.id, ok: true, notion_page_id: 'pag-1' });
+  assert.equal(fim.sync_estado, 'pendente', 'volta a pendente para enviar a empresa');
+  assert.equal(fim.notion_page_id, 'pag-1');
+  assert.equal((await reservar(db, null)).length, 1, 'o agendamento apanha-o logo');
+});
+
+test('sincronização: backoff de 5 min, 30 min, 2 h, 12 h e depois falhado', async () => {
+  const db = await baseNova();
+  const l = await registar(db, { session_id: SESSAO, email: 'ana@x.pt' });
+  const esperas = [5, 30, 120, 720];
+
+  for (const minutos of esperas) {
+    await db.query(`UPDATE leads SET sync_proxima_em = now() - interval '1 second'`);
+    await reservar(db, null);
+    const f = await concluir(db, { id: l.id, ok: false, erro: 'Notion 502' });
+    assert.equal(f.sync_estado, 'pendente');
+    const atraso = (new Date(f.sync_proxima_em) - Date.now()) / 60000;
+    assert.ok(Math.abs(atraso - minutos) < 1, `esperava ~${minutos} min, deu ${atraso}`);
+    assert.equal(f.sync_ultimo_erro, 'Notion 502');
+  }
+  await db.query(`UPDATE leads SET sync_proxima_em = now() - interval '1 second'`);
+  await reservar(db, null);
+  const f = await concluir(db, { id: l.id, ok: false, erro: 'Notion 502' });
+  assert.deepEqual([f.sync_estado, f.sync_tentativas, f.sync_proxima_em], ['falhado', 5, null]);
+
+  // Dados novos dão-lhe outra oportunidade.
+  const outra = await registar(db, { session_id: SESSAO, nome: 'Ana' });
+  assert.deepEqual([outra.sync_estado, outra.sync_tentativas], ['pendente', 0]);
+});
+
+test('atualizado_em só muda com os dados do lead, não com a sincronização', async () => {
+  const db = await baseNova();
+  await registar(db, { session_id: SESSAO, email: 'ana@x.pt' });
+  await db.query(`UPDATE leads SET atualizado_em = '2026-01-01'`);
+  const [r] = await reservar(db, SESSAO);
+  await concluir(db, { id: r.id, ok: false, erro: 'x' });
+  assert.equal((await um(db, `SELECT atualizado_em = '2026-01-01' AS igual FROM leads`)).igual, true);
+});

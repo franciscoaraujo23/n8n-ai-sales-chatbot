@@ -1,0 +1,3 @@
+# LF em tudo: o sql/aplicar.sh corre no Linux da VPS e os JSON vão para o n8n.
+* text=auto eol=lf
+*.png binary

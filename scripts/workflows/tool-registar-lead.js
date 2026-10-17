@@ -14,6 +14,7 @@ const NOME = 'Chatbot – tool-registar-lead';
 
 module.exports = {
   nome: NOME,
+  ordem: 10,
   ficheiro: 'tool-registar-lead.json',
   criar() {
     const w = L.workflow(NOME, L.settingsBase());

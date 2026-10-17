@@ -35,8 +35,32 @@ function definicoes() {
   return fs
     .readdirSync(PASTA_DEFS)
     .filter((f) => f.endsWith('.js'))
-    .sort()
-    .map((f) => ({ slug: f.replace(/\.js$/, ''), ...require(path.join(PASTA_DEFS, f)) }));
+    .map((f) => ({ slug: f.replace(/\.js$/, ''), ...require(path.join(PASTA_DEFS, f)) }))
+    // Dependências primeiro: um workflow só referencia os de ordem menor.
+    .sort((a, b) => (a.ordem || 0) - (b.ordem || 0) || a.slug.localeCompare(b.slug));
+}
+
+/**
+ * sql/dev/kb_placeholder.sql: ativa o placeholder como base de conhecimento,
+ * para testar o agente antes de o Google Doc existir. O hash é o mesmo que o
+ * kb-sync calcularia (SHA-256 do texto normalizado), por isso não duplica.
+ */
+function gerarKbDev() {
+  const crypto = require('node:crypto');
+  const { normalizarKb, validarKb } = require('../src/kb-contrato');
+  const texto = normalizarKb(fs.readFileSync(path.join(RAIZ, 'kb', 'placeholder.md'), 'utf8'));
+  if (!validarKb(texto).valido) throw new Error('kb/placeholder.md não cumpre o contrato');
+  if (texto.includes('$kb$')) throw new Error('o placeholder não pode conter "$kb$"');
+  const hash = crypto.createHash('sha256').update(texto, 'utf8').digest('hex');
+  const sql = [
+    '-- Gerado por scripts/build.js a partir de kb/placeholder.md. Só para desenvolvimento:',
+    '-- ativa a base fictícia. O kb-sync substitui-a pela versão do Google Doc.',
+    `SELECT * FROM registar_kb('${hash}', $kb$${texto}$kb$, 'placeholder', true);`,
+    '',
+  ].join('\n');
+  fs.mkdirSync(path.join(RAIZ, 'sql', 'dev'), { recursive: true });
+  fs.writeFileSync(path.join(RAIZ, 'sql', 'dev', 'kb_placeholder.sql'), sql);
+  console.log(`gerado   sql/dev/kb_placeholder.sql  (hash ${hash.slice(0, 12)})`);
 }
 
 function gerar(defs) {
@@ -142,6 +166,7 @@ async function main() {
   if (pedidos.length && escolhidos.length !== pedidos.length) {
     throw new Error(`desconhecido: ${pedidos.filter((p) => !todos.some((d) => d.slug === p)).join(', ')}`);
   }
+  gerarKbDev();
   const gerados = gerar(escolhidos);
   if (args.includes('--enviar')) await enviar(gerados);
 }

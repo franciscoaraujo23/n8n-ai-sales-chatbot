@@ -11,6 +11,7 @@ const NOME = 'Chatbot – kb-sync';
 
 module.exports = {
   nome: NOME,
+  ordem: 10,
   ficheiro: 'kb-sync.json',
   criar() {
     const w = L.workflow(NOME, L.settingsBase());

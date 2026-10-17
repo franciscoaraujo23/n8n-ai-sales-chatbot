@@ -18,6 +18,15 @@
   produção, e os evals também gastam dinheiro).
 - **Teto global como proteção real.** O `session_id` é gerado no cliente e
   pode ser rodado; o teto global junta todos os canais públicos.
+- **O Chat Trigger não expõe o IP nem os cabeçalhos** (verificado no código
+  do n8n 2.29.10: o nó passa ao workflow só o corpo do pedido). Limitar por
+  IP teria de ser no Caddy.
+- **Allowed Origins é só CORS**: define o cabeçalho da resposta, não recusa
+  pedidos. Um `curl` com qualquer origem é processado. Mais uma razão para o
+  teto global ser a proteção real.
+- **Ficheiros recusados na normalização.** Em modo Embedded, o Chat Trigger
+  aceita `multipart/form-data` com ficheiros mesmo com uploads desligados no
+  widget (a opção só se aplica ao chat alojado pelo n8n).
 - **Sem limite por IP na v1.** Obrigaria a compilar o Caddy com um plugin,
   para um tráfego que ainda não existe. Revisitar se aparecer abuso real na
   tabela `rate_limits`.
@@ -55,6 +64,15 @@
   e campos inexistentes antes de chegar ao n8n.
 - **Mensagens para o Discord sem menções**: texto do visitante com
   "@everyone" não notifica o canal.
+
+- **Os bloqueios de tráfego ficam registados pelo próprio `guard-trafego`**
+  (é a única peça que os vê), com a resposta fixa que o visitante recebeu.
+- **Sem base de conhecimento ativa, o agente não é chamado** (motivo
+  `sem_kb`): sem base, inventaria.
+- **Memória com `contextWindowLength` = 6**: o nó conta interações (pergunta
+  + resposta), não mensagens; 6 interações = as 12 mensagens decididas.
+- **Custo estimado inclui as idas extra ao modelo** quando o agente usa
+  tools (cada uma volta a enviar o contexto inteiro).
 
 ## Comportamento do bot
 

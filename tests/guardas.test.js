@@ -123,6 +123,24 @@ test('estimativas de tokens e custo', () => {
   assert.equal(g.estimarCustoEur(1e6, 0, CONFIG), 0.368);
 });
 
+test('estimarConsumo conta cada ida ao modelo quando há tools', () => {
+  const semTools = g.estimarConsumo({ sistemaChars: 4000, historicoChars: 0, textoChars: 0, respostaChars: 400 }, CONFIG);
+  assert.deepEqual([semTools.tokensEntrada, semTools.tokensSaida], [1000, 100]);
+
+  // 2 tools: 3 idas ao modelo; a 2.ª leva o passo 1 e a 3.ª os dois.
+  const comTools = g.estimarConsumo(
+    {
+      sistemaChars: 4000, historicoChars: 0, textoChars: 0, respostaChars: 400,
+      passos: [{ entrada: 'a'.repeat(40), saida: 'b'.repeat(360) }, { entrada: 'c'.repeat(40), saida: 'd'.repeat(360) }],
+    },
+    CONFIG
+  );
+  assert.equal(comTools.tokensEntrada, Math.ceil((4000 + 4400 + 4800) / 4));
+  assert.equal(comTools.tokensSaida, Math.ceil((400 + 40 + 40) / 4));
+  assert.ok(comTools.custoEur > semTools.custoEur);
+  assert.deepEqual(g.estimarConsumo({}, CONFIG), { tokensEntrada: 0, tokensSaida: 0, custoEur: 0 });
+});
+
 test('respostaFixa existe para todos os motivos, em pt-PT e com saída útil', () => {
   for (const m of [...g.MOTIVOS_BLOQUEIO, 'fallback']) {
     const r = g.respostaFixa(m, CONFIG);

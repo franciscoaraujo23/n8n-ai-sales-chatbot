@@ -241,3 +241,60 @@ test('atualizado_em só muda com os dados do lead, não com a sincronização', 
   await concluir(db, { id: r.id, ok: false, erro: 'x' });
   assert.equal((await um(db, `SELECT atualizado_em = '2026-01-01' AS igual FROM leads`)).igual, true);
 });
+
+// --- 003: contexto e gravação do turno ---------------------------------------
+
+test('sql/dev/kb_placeholder.sql ativa o placeholder e é idempotente', async () => {
+  const db = await baseNova();
+  const seed = readFileSync(join(pastaSql, 'dev', 'kb_placeholder.sql'), 'utf8');
+  await db.exec(seed);
+  await db.exec(seed);
+  const k = await um(db, `SELECT count(*)::int AS n, bool_and(ativa) AS ativa, min(origem) AS origem FROM kb_versions`);
+  assert.deepEqual(k, { n: 1, ativa: true, origem: 'placeholder' });
+  const c = await um(db, 'SELECT kb_conteudo FROM contexto_turno($1, 60, 12)', [SESSAO]);
+  assert.ok(c.kb_conteudo.includes('## Contactos e horário'));
+});
+
+test('contexto_turno: uma linha sempre, mesmo sem KB, lead nem memória', async () => {
+  const db = await baseNova();
+  const vazio = await um(db, 'SELECT * FROM contexto_turno($1, 60, 12)', [SESSAO]);
+  assert.deepEqual(vazio, {
+    quarentenas_recentes: 0, ctas_anteriores: 0, custo_hoje: '0', historico_chars: 0,
+    lead_nome: null, lead_email: null, lead_telefone: null, kb_hash: null, kb_conteudo: null,
+  });
+});
+
+test('contexto_turno: junta KB ativa, lead, custo e tamanho da memória', async () => {
+  const db = await baseNova();
+  await db.query('SELECT * FROM registar_kb($1, $2, $3, true)', [HASH_A, '## Sobre a Nautica', 'doc']);
+  await registar(db, { session_id: SESSAO, nome: 'Ana', email: 'ana@x.pt' });
+  await db.exec(`CREATE TABLE chat_memoria (id serial PRIMARY KEY, session_id varchar(255) NOT NULL, message jsonb NOT NULL)`);
+  await db.query(`INSERT INTO chat_memoria (session_id, message) VALUES ($1, '{"a":"1234"}'), ($1, '{"b":"5678"}'), ('outra', '{"c":"x"}')`, [SESSAO]);
+  await db.query(`SELECT * FROM registar_turno($1::jsonb)`, [JSON.stringify({ session_id: SESSAO, canal: 'site', schema_version: 1, custo_estimado_eur: 0.01, cta_usada: true })]);
+
+  const c = await um(db, 'SELECT * FROM contexto_turno($1, 60, 12)', [SESSAO]);
+  assert.equal(c.kb_hash, HASH_A);
+  assert.equal(c.kb_conteudo, '## Sobre a Nautica');
+  assert.deepEqual([c.lead_nome, c.lead_email], ['Ana', 'ana@x.pt']);
+  assert.equal(c.ctas_anteriores, 1);
+  assert.equal(Number(c.custo_hoje), 0.01);
+  assert.equal(c.historico_chars, '{"a": "1234"}'.length + '{"b": "5678"}'.length);
+  assert.equal((await um(db, 'SELECT * FROM contexto_turno($1, 60, 1)', [SESSAO])).historico_chars, '{"b": "5678"}'.length);
+});
+
+test('registar_turno: aceita JSON parcial e trata arrays e nulls', async () => {
+  const db = await baseNova();
+  const { turno_id } = await um(db, 'SELECT * FROM registar_turno($1::jsonb)', [JSON.stringify({
+    session_id: 'x'.repeat(300), canal: 'site', schema_version: 1, texto: 't'.repeat(5000),
+    guarda: 'quarentena', regras: ['pedir_prompt'], tools: null, links_removidos: ['https://evil.com'],
+    pt_br: [], recebido_em: '2026-10-17T10:00:00Z',
+  })]);
+  const t = await um(db, 'SELECT * FROM turns WHERE id = $1', [turno_id]);
+  assert.equal(t.session_id.length, 100);
+  assert.equal(t.texto.length, 4000);
+  assert.deepEqual(t.regras, ['pedir_prompt']);
+  assert.deepEqual(t.tools, []);
+  assert.deepEqual(t.links_removidos, ['https://evil.com']);
+  assert.equal(t.fallback, false);
+  assert.equal(new Date(t.recebido_em).toISOString(), '2026-10-17T10:00:00.000Z');
+});

@@ -21,11 +21,24 @@ function fonte(modulo) {
   return texto.slice(0, i).trim();
 }
 
-/** jsCode de um Code node: módulos de /src seguidos do código do nó. */
+/** prompts/<nome>.md como constante JS (PROMPT_SISTEMA para "system"). */
+function prompt(nome) {
+  const texto = fs.readFileSync(path.join(RAIZ, 'prompts', `${nome}.md`), 'utf8');
+  return `const PROMPT_${nome === 'system' ? 'SISTEMA' : nome.toUpperCase()} = ${JSON.stringify(texto)};`;
+}
+
+/**
+ * jsCode de um Code node: módulos de /src (ou "prompt:<nome>" para um
+ * ficheiro de /prompts) seguidos do código do nó.
+ */
 function codigo(modulos, corpo) {
   return [
     `// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.`,
-    ...modulos.map((m) => `// ===== src/${m}.js =====\n${fonte(m)}`),
+    ...modulos.map((m) =>
+      m.startsWith('prompt:')
+        ? `// ===== prompts/${m.slice(7)}.md =====\n${prompt(m.slice(7))}`
+        : `// ===== src/${m}.js =====\n${fonte(m)}`
+    ),
     `// ===== código deste nó =====\n${corpo.trim()}`,
   ].join('\n\n');
 }
@@ -92,9 +105,63 @@ function settingsBase(extra) {
   };
 }
 
+/**
+ * Entradas de um sub-workflow (Execute Workflow ou tool), no formato
+ * resourceMapper do n8n. `campos`: { nome: expressão }.
+ */
+function entradas(campos, tipos) {
+  const t = tipos || {};
+  return {
+    mappingMode: 'defineBelow',
+    value: campos,
+    matchingColumns: [],
+    schema: Object.keys(campos).map((id) => ({
+      id,
+      displayName: id,
+      required: false,
+      defaultMatch: false,
+      display: true,
+      canBeUsedToMatch: true,
+      type: t[id] || 'string',
+      removed: false,
+    })),
+    attemptToConvertTypes: false,
+    convertFieldsToString: false,
+  };
+}
+
+/** Os cinco campos do payload canónico (schema_version 1). */
+const CAMPOS_PAYLOAD = ['schema_version', 'canal', 'session_id', 'texto', 'recebido_em'];
+
+/** Entradas do Execute Workflow Trigger para o payload canónico. */
+function triggerPayload() {
+  return {
+    inputSource: 'workflowInputs',
+    workflowInputs: {
+      values: CAMPOS_PAYLOAD.map((name) => ({ name, type: name === 'schema_version' ? 'number' : 'string' })),
+    },
+  };
+}
+
+/** Execute Workflow que passa o payload canónico (lido de `origem`) a outro workflow. */
+function paramsChamarComPayload(nomeWorkflow, origem) {
+  const campos = {};
+  for (const c of CAMPOS_PAYLOAD) campos[c] = `={{ ${origem}.${c} }}`;
+  return {
+    source: 'database',
+    workflowId: refWorkflow(nomeWorkflow),
+    workflowInputs: entradas(campos, { schema_version: 'number' }),
+    mode: 'once',
+    options: { waitForSubWorkflow: true },
+  };
+}
+
 // ---- Nós usados com frequência -------------------------------------------
 
 const CRED_PG = credencial('postgres', 'Postgres chatbot');
+
+/** Nova tentativa curta para falhas de ligação nas queries de que tudo depende. */
+const RETRY_PG = { retryOnFail: true, maxTries: 2, waitBetweenTries: 500 };
 
 /** Postgres com um único parâmetro jsonb: vírgulas e nulls nunca partem a query. */
 function paramsSql(query, expressaoParametro) {
@@ -170,7 +237,13 @@ module.exports = {
   credencial,
   refWorkflow,
   settingsBase,
+  prompt,
+  entradas,
+  CAMPOS_PAYLOAD,
+  triggerPayload,
+  paramsChamarComPayload,
   CRED_PG,
+  RETRY_PG,
   paramsSql,
   paramsSe,
   paramsNotion,

@@ -9,6 +9,7 @@ const NOME = 'Chatbot – manutencao';
 
 module.exports = {
   nome: NOME,
+  ordem: 10,
   ficheiro: 'manutencao.json',
   criar() {
     const w = L.workflow(NOME, L.settingsBase());

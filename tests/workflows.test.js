@@ -8,26 +8,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { CONFIG } = require('../src/config');
 
-const wf = (f) => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'workflows', f), 'utf8'));
+const { wf, correr } = require('./harness');
 const SESSAO = '3f2b8c1e-9a4d-4e6f-8b2a-1c3d5e7f9a0b';
-
-/** Executa um Code node. `nos`: saídas simuladas de outros nós, por nome. */
-function correr(workflow, nome, { entrada = [{}], nos = {} } = {}) {
-  const no = workflow.nodes.find((n) => n.name === nome);
-  assert.ok(no, `nó não existe: ${nome}`);
-  const $ = (outro) => {
-    assert.ok(workflow.nodes.some((n) => n.name === outro), `referência a um nó que não existe: ${outro}`);
-    if (!(outro in nos)) throw new Error(`Node '${outro}' hasn't been executed`);
-    const json = nos[outro];
-    return { item: { json }, first: () => ({ json }), all: () => [{ json }] };
-  };
-  const fn = new Function('$', '$json', '$input', no.parameters.jsCode);
-  if (no.parameters.mode === 'runOnceForEachItem') {
-    return entrada.map((json) => fn($, json, { item: { json } }).json);
-  }
-  const $input = { first: () => ({ json: entrada[0] }), all: () => entrada.map((json) => ({ json })) };
-  return fn($, entrada[0], $input).map((i) => i.json);
-}
 
 // ---- tool-registar-lead -----------------------------------------------------
 

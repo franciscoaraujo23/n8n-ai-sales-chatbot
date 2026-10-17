@@ -20,6 +20,8 @@ const MOTIVOS_BLOQUEIO = [
   'limite_sessao',
   'teto_global',
   'kill_switch_custo',
+  'pedido_invalido', // não é uma mensagem de texto (ex.: ficheiros enviados diretamente ao webhook)
+  'sem_kb', // não há base de conhecimento ativa: o agente não responde sem ela
 ];
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -168,6 +170,34 @@ function estimarTokens(texto) {
   return Math.ceil(String(texto || '').length / 4);
 }
 
+/**
+ * Consumo estimado de um turno do agente. Cada chamada a uma tool é mais
+ * uma ida ao modelo, que volta a receber o contexto inteiro (sistema + KB +
+ * histórico + mensagem) e os passos anteriores.
+ * `c`: { sistemaChars, historicoChars, textoChars, respostaChars,
+ *        passos: [{ entrada, saida }] }  (entrada/saida das tools, em texto)
+ */
+function estimarConsumo(c, cfg) {
+  const passos = c.passos || [];
+  const base = (c.sistemaChars || 0) + (c.historicoChars || 0) + (c.textoChars || 0);
+  const iteracoes = 1 + passos.length;
+  let acumulado = 0;
+  let entradaChars = 0;
+  let saidaChars = c.respostaChars || 0;
+  for (let i = 0; i < iteracoes; i++) {
+    entradaChars += base + acumulado;
+    if (i < passos.length) {
+      const e = String(passos[i].entrada || '').length;
+      const s = String(passos[i].saida || '').length;
+      saidaChars += e;
+      acumulado += e + s;
+    }
+  }
+  const tokensEntrada = Math.ceil(entradaChars / 4);
+  const tokensSaida = Math.ceil(saidaChars / 4);
+  return { tokensEntrada, tokensSaida, custoEur: estimarCustoEur(tokensEntrada, tokensSaida, cfg) };
+}
+
 function estimarCustoEur(tokensEntrada, tokensSaida, cfg) {
   const m = cfg.modelo;
   const usd = (tokensEntrada * m.precoEntradaUsdPorMilhao + tokensSaida * m.precoSaidaUsdPorMilhao) / 1e6;
@@ -187,6 +217,8 @@ function respostaFixa(motivo, cfg) {
     limite_sessao: `Está a enviar mensagens muito depressa. Aguarde um minuto e tente outra vez. Se preferir, pode ${cal}.`,
     teto_global: `De momento o assistente não está disponível. Pode ${cal} ou escrever para ${email}.`,
     kill_switch_custo: `De momento o assistente não está disponível. Pode ${cal} ou escrever para ${email}.`,
+    pedido_invalido: `Este chat só aceita mensagens de texto. Se precisar de nos enviar um ficheiro, escreva para ${email}.`,
+    sem_kb: `Desculpe, não consigo responder agora. Pode ${cal} ou escrever para ${email} e a nossa equipa responde-lhe.`,
     fallback: `Desculpe, não consegui responder agora. Pode ${cal} ou escrever para ${email} e a nossa equipa responde-lhe.`,
   };
   return textos[motivo] || textos.fallback;
@@ -204,6 +236,7 @@ module.exports = {
   avaliarTrafego,
   avaliarCusto,
   estimarTokens,
+  estimarConsumo,
   estimarCustoEur,
   respostaFixa,
 };

@@ -1,0 +1,220 @@
+{
+  "name": "Chatbot – chat-eval",
+  "nodes": [
+    {
+      "id": "e27e5e28-d714-4da6-a7d6-84522809ffa3",
+      "name": "[TRIGGER] Webhook de eval",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "chatbot-eval",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "webhookId": "1afaff4e-7433-4443-a1d8-defd194b4825",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": null,
+          "name": "Eval chatbot"
+        }
+      }
+    },
+    {
+      "id": "eeb1d597-cde1-4b40-a8b7-3c8c91d2fe12",
+      "name": "[NORMALIZE] Mensagem canónica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).\n  // Enquanto for null, o kb-sync falha com uma mensagem clara.\n  kb: {\n    googleDocId: null,\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== código deste nó =====\nconst b = $input.first().json.body || {};\nreturn [{\n  json: {\n    payload: {\n      schema_version: CONFIG.schemaVersion,\n      canal: 'eval',\n      session_id: String(b.session_id ?? '').slice(0, 100),\n      texto: typeof b.texto === 'string' ? b.texto : '',\n      recebido_em: new Date().toISOString(),\n    },\n  },\n}];"
+      }
+    },
+    {
+      "id": "2bc18794-b911-4b5d-a513-39da979cdd06",
+      "name": "[AGENT] Núcleo (chat-core)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REF:Chatbot – chat-core",
+          "cachedResultName": "Chatbot – chat-core"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "schema_version": "={{ $json.payload.schema_version }}",
+            "canal": "={{ $json.payload.canal }}",
+            "session_id": "={{ $json.payload.session_id }}",
+            "texto": "={{ $json.payload.texto }}",
+            "recebido_em": "={{ $json.payload.recebido_em }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "schema_version",
+              "displayName": "schema_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number",
+              "removed": false
+            },
+            {
+              "id": "canal",
+              "displayName": "canal",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "texto",
+              "displayName": "texto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "recebido_em",
+              "displayName": "recebido_em",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "7dccb1c6-b108-4f47-a6fc-0c3e9bd08294",
+      "name": "[OUTPUT] Falha do núcleo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        150
+      ],
+      "parameters": {
+        "jsCode": "\n// No eval queremos ver a falha (o site mostraria o fallback).\nconst e = $input.first().json.error || {};\nreturn [{ json: { erro_nucleo: String(e.message || 'erro desconhecido'), resposta: null } }];\n"
+      }
+    },
+    {
+      "id": "63707e3a-e228-4abd-a1cc-32904e500dbf",
+      "name": "[OUTPUT] Responder ao runner",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "[TRIGGER] Webhook de eval": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Mensagem canónica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Mensagem canónica": {
+      "main": [
+        [
+          {
+            "node": "[AGENT] Núcleo (chat-core)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[AGENT] Núcleo (chat-core)": {
+      "main": [
+        [
+          {
+            "node": "[OUTPUT] Responder ao runner",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "[OUTPUT] Falha do núcleo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[OUTPUT] Falha do núcleo": {
+      "main": [
+        [
+          {
+            "node": "[OUTPUT] Responder ao runner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "all",
+    "saveManualExecutions": true,
+    "timezone": "Europe/Lisbon",
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

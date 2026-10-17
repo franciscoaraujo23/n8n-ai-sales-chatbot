@@ -12,6 +12,7 @@ const NOME = 'Chatbot – tool-avisar-humano';
 
 module.exports = {
   nome: NOME,
+  ordem: 10,
   ficheiro: 'tool-avisar-humano.json',
   criar() {
     const w = L.workflow(NOME, L.settingsBase());

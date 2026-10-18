@@ -73,6 +73,20 @@ test('registar_pedido conta por sessão e globalmente, com chaves de minuto e di
   assert.equal(r.global_dia, 6);
 });
 
+test('custo_hoje e contexto_turno contam só o canal pedido (006)', async () => {
+  const db = await baseNova();
+  const ins = `INSERT INTO turns (session_id, canal, schema_version, texto, custo_estimado_eur) VALUES ($1, $2, 1, 'x', $3)`;
+  await db.query(ins, [SESSAO, 'site', 0.1]);
+  await db.query(ins, ['ev', 'eval', 0.7]);
+  assert.equal(Number((await um(db, 'SELECT custo_hoje() AS c')).c), 0.8);
+  assert.equal(Number((await um(db, `SELECT custo_hoje('Europe/Lisbon', 'site') AS c`)).c), 0.1);
+  assert.equal(Number((await um(db, `SELECT custo_hoje('Europe/Lisbon', 'eval') AS c`)).c), 0.7);
+  // Chamada antiga (sem canal) continua a funcionar e conta tudo.
+  assert.equal(Number((await um(db, 'SELECT custo_hoje FROM contexto_turno($1, 60, 12)', [SESSAO])).custo_hoje), 0.8);
+  const c = await um(db, `SELECT custo_hoje FROM contexto_turno($1, 60, 12, 'Europe/Lisbon', 'site')`, [SESSAO]);
+  assert.equal(Number(c.custo_hoje), 0.1);
+});
+
 test('custo_hoje e estado_sessao', async () => {
   const db = await baseNova();
   const ins = `INSERT INTO turns (session_id, canal, schema_version, texto, guarda, custo_estimado_eur, cta_usada, criado_em)

@@ -40,6 +40,24 @@ return [{
 
     const sessaoOk = w.no('[GUARD] Sessão válida?', 'n8n-nodes-base.if', 2.2, L.paramsSe('$json.valido'), [440, 0]);
 
+    // O agente chama as tools do mesmo passo em paralelo: quem dá o contacto e
+    // pede uma pessoa na mesma mensagem dispara registar_lead e avisar_humano
+    // ao mesmo tempo, e o aviso lia a conversa antes de o lead estar gravado
+    // (saía "sem contacto" e um lead de teste ia para o Discord). Sem contacto
+    // gravado, espera um pouco antes de registar; com contacto, segue logo.
+    const temContacto = w.no('[GUARD] Contacto já gravado?', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
+SELECT EXISTS (
+  SELECT 1 FROM leads
+  WHERE session_id = $1::jsonb->>'session_id' AND (email IS NOT NULL OR telefone IS NOT NULL)
+) AS tem_contacto
+`, 'JSON.stringify({ session_id: $json.session_id })'), [660, -100], { credentials: L.CRED_PG, ...L.RETRY_PG });
+    const comContacto = w.no('[GUARD] Com contacto?', 'n8n-nodes-base.if', 2.2, L.paramsSe('$json.tem_contacto'), [880, -100]);
+    const esperar = w.no('[GUARD] Esperar pelo registar_lead', 'n8n-nodes-base.wait', 1.1, {
+      resume: 'timeInterval',
+      amount: 3,
+      unit: 'seconds',
+    }, [1100, 0]);
+
     const registar = w.no('[TOOL] Registar aviso', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
 SELECT h.handoff_id, h.enviar, h.teste,
        l.nome, l.empresa, l.setor, l.email, l.telefone, l.problema, l.notion_page_id,
@@ -48,11 +66,11 @@ SELECT h.handoff_id, h.enviar, h.teste,
 FROM (SELECT $1::jsonb AS p) AS x
 CROSS JOIN LATERAL registar_handoff(p->>'session_id', p->>'motivo', p->>'resumo') AS h
 LEFT JOIN leads l ON l.session_id = p->>'session_id'
-`, 'JSON.stringify({ session_id: $json.session_id, motivo: $json.motivo, resumo: $json.resumo })'),
-    [660, -100], { credentials: L.CRED_PG });
+`, `(({ session_id, motivo, resumo }) => JSON.stringify({ session_id, motivo, resumo }))($('[GUARD] Validar pedido').first().json)`),
+    [1320, -100], { credentials: L.CRED_PG });
 
     const primeiro = w.no('[TOOL] Primeiro aviso deste motivo?', 'n8n-nodes-base.if', 2.2,
-      L.paramsSe('$json.enviar'), [880, -100]);
+      L.paramsSe('$json.enviar'), [1540, -100]);
 
     const mensagem = w.no('[NORMALIZE] Mensagem para o Discord', 'n8n-nodes-base.code', 2, {
       jsCode: L.codigo(['mensagens'], `
@@ -60,17 +78,17 @@ const pedido = $('[GUARD] Validar pedido').first().json;
 const h = $input.first().json;
 return [{ json: { handoff_id: h.handoff_id, mensagem: mensagemHandoff({ ...h, ...pedido }) } }];
 `),
-    }, [1100, -200]);
+    }, [1760, -200]);
 
     const d = L.paramsDiscord('$json.mensagem', 'Discord chatbot leads');
-    const discord = w.no('[OUTPUT] Discord – leads', 'n8n-nodes-base.discord', 2, d.parametros, [1320, -200], d.extra);
+    const discord = w.no('[OUTPUT] Discord – leads', 'n8n-nodes-base.discord', 2, d.parametros, [1980, -200], d.extra);
 
     // Um aviso que não chegou ao Discord é um lead que ninguém vê: alerta.
-    const falhou = w.no('[GUARD] O Discord recusou?', 'n8n-nodes-base.if', 2.2, L.paramsSe('Boolean($json.error)'), [1540, -200]);
+    const falhou = w.no('[GUARD] O Discord recusou?', 'n8n-nodes-base.if', 2.2, L.paramsSe('Boolean($json.error)'), [2200, -200]);
     const eDiscord = L.paramsRegistarErro('[OUTPUT] Discord – leads', 'aviso_nao_enviado',
       "'handoff ' + $('[NORMALIZE] Mensagem para o Discord').first().json.handoff_id + ': ' + String($json.error.message || $json.error)");
     const erroDiscord = w.no('[ERROR] Aviso não chegou ao Discord', 'n8n-nodes-base.executeWorkflow', 1.2,
-      eDiscord.parametros, [1760, -300], eDiscord.extra);
+      eDiscord.parametros, [2420, -300], eDiscord.extra);
 
     const estado = w.no('[LOGGING] Estado do envio', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
 UPDATE handoffs SET
@@ -84,7 +102,7 @@ RETURNING handoffs.id, handoffs.discord_estado
   handoff_id: $('[NORMALIZE] Mensagem para o Discord').first().json.handoff_id,
   ok: !$json.error,
   erro: $json.error ? String($json.error.message || JSON.stringify($json.error)) : null,
-})`), [1980, -200], { credentials: L.CRED_PG });
+})`), [2640, -200], { credentials: L.CRED_PG });
 
     const resposta = w.no('[OUTPUT] Resposta ao agente', 'n8n-nodes-base.code', 2, {
       jsCode: `
@@ -102,12 +120,16 @@ return [{
   },
 }];
 `,
-    }, [2200, 0]);
+    }, [2860, 0]);
 
     w.liga(entrada, validar);
     w.liga(validar, sessaoOk);
-    w.liga(sessaoOk, registar, 0);
+    w.liga(sessaoOk, temContacto, 0);
     w.liga(sessaoOk, resposta, 1);
+    w.liga(temContacto, comContacto);
+    w.liga(comContacto, registar, 0);
+    w.liga(comContacto, esperar, 1);
+    w.liga(esperar, registar);
     w.liga(registar, primeiro);
     w.liga(primeiro, mensagem, 0);
     w.liga(primeiro, resposta, 1);

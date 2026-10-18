@@ -78,6 +78,19 @@ test('tool-avisar-humano: registar aviso devolve dados do lead e idempotência',
   assert.equal(e.discord_estado, 'falhado');
 });
 
+test('tool-avisar-humano: só segue sem esperar quando o contacto já está gravado', async () => {
+  const db = await baseNova();
+  const sql = query('tool-avisar-humano.json', '[GUARD] Contacto já gravado?');
+  assert.equal((await correr(db, sql, { session_id: SESSAO }))[0].tem_contacto, false);
+  await db.query(`SELECT * FROM registar_lead($1::jsonb)`, [JSON.stringify({ session_id: SESSAO, nome: 'Ana' })]);
+  assert.equal((await correr(db, sql, { session_id: SESSAO }))[0].tem_contacto, false);
+  await db.query(`SELECT * FROM registar_lead($1::jsonb)`, [JSON.stringify({ session_id: SESSAO, email: 'ana@exemplo.pt', dominios_teste: ['exemplo.pt'] })]);
+  assert.equal((await correr(db, sql, { session_id: SESSAO }))[0].tem_contacto, true);
+  // Lead de teste visível → o aviso fica "teste" e não vai para o Discord.
+  const [r] = await correr(db, query('tool-avisar-humano.json', '[TOOL] Registar aviso'), { session_id: SESSAO, motivo: 'pede_humano', resumo: 'r' });
+  assert.deepEqual([r.enviar, r.teste, r.email], [false, true, 'ana@exemplo.pt']);
+});
+
 test('tool-registar-lead: gravar, reservar e concluir pela ordem do workflow', async () => {
   const db = await baseNova();
   const [lead] = await correr(db, query('tool-registar-lead.json', '[TOOL] Gravar lead (Postgres)'), { session_id: SESSAO, nome: 'Ana', email: 'ana@x.pt' });

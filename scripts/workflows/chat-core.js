@@ -128,7 +128,7 @@ return [{
       model: CONFIG.modelo.id,
       options: {
         temperature: 0.3,
-        maxTokens: 700,
+        maxTokens: CONFIG.modelo.maxTokens,
         timeout: CONFIG.modelo.timeoutMs,
         maxRetries: 1,
       },

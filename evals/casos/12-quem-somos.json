@@ -15,7 +15,7 @@
           "/Rafael/i",
           "/Ara[uú]jo/i",
           "/Serpa/i",
-          "/somos (dois|2|tr[eê]s|3|quatro|4)\b/i",
+          "/somos (dois|2|tr[eê]s|3|quatro|4)\\b/i",
           "/\\d+ clientes/i",
           "/n[ãa]o (temos|tem|h[áa]) (ainda )?clientes/i",
           "/(ainda )?sem clientes/i",

@@ -60,6 +60,14 @@ versão em produção (2.29.10), não na documentação.
 - **`lead_qualificado` reservado ao aviso automático.** Se o agente o pedir,
   passa a `outro`: um aviso prematuro, ainda sem contacto, ocupava o par
   (conversa, motivo) e bloqueava o automático.
+- **`avisar_humano` espera 3 s quando a conversa ainda não tem contacto**
+  (2026-10-18). O agente do n8n corre em paralelo as tools pedidas no mesmo
+  passo. Quem pede uma pessoa e deixa o email na mesma mensagem dispara
+  `registar_lead` e `avisar_humano` ao mesmo tempo, e o aviso lia a conversa
+  antes de o lead estar gravado: a equipa recebia "sem contacto" e os leads
+  de teste chegavam ao Discord. Com o contacto já gravado não há espera; sem
+  ele, o turno demora mais uns 2 s, só nesse caso. Pôr a ordem no prompt não
+  chega, porque as duas chamadas saem na mesma resposta do modelo.
 - **Objeções respondidas como na base**, sem sublinhar o que a empresa ainda
   não tem. Com o `gpt-4.1-mini`, o caso "quem-somos" continua a falhar (o bot
   diz que não tem clientes antes de reduzir o risco); três formulações do

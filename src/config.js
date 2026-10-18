@@ -19,6 +19,11 @@ const CONFIG = {
     id: 'anthropic/claude-haiku-5.5',
     precoEntradaUsdPorMilhao: 0.1,
     precoSaidaUsdPorMilhao: 0.5,
+    // Teto da resposta do modelo, incluindo o raciocínio interno que alguns
+    // modelos (o Haiku 5.5, por exemplo) fazem antes de escrever: com 700, o
+    // raciocínio comia parte do teto e a resposta saía cortada ou vazia. O
+    // tamanho visível é limitado por limites.respostaMaxChars.
+    maxTokens: 2000,
     timeoutMs: 25000,
   },
   usdParaEur: 0.92,

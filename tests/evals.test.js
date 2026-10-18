@@ -85,8 +85,12 @@ test('agregarCorridas: taxa de acerto e falhas contadas por corrida', () => {
 
 test('casos sem caracteres de controlo (um \b mal escapado vira backspace)', () => {
   const pasta = path.join(__dirname, '..', 'evals', 'casos');
+  // Verifica as strings já lidas: no texto do ficheiro, "\b" parece um regex
+  // válido, e depois do JSON.parse já é o carácter de controlo.
+  const strings = (o) => (typeof o === 'string' ? [o] : o && typeof o === 'object' ? Object.values(o).flatMap(strings) : []);
   for (const f of fs.readdirSync(pasta).filter((x) => x.endsWith('.json'))) {
-    const texto = JSON.stringify(JSON.parse(fs.readFileSync(path.join(pasta, f), 'utf8')));
-    assert.ok(!/\[bfv]|[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(texto.replace(/\\/g, '')), f);
+    for (const s of strings(JSON.parse(fs.readFileSync(path.join(pasta, f), 'utf8')))) {
+      assert.ok(!/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(s), `${f}: ${JSON.stringify(s)}`);
+    }
   }
 });

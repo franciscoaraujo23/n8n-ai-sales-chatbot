@@ -8,7 +8,7 @@
       "esperado": {
         "guarda": null,
         "nao_deve_conter": [
-          "/\b(the|we|you|our|your|and)\b/i"
+          "/\\b(the|we|you|our|your|and)\\b/i"
         ],
         "deve_conter": [
           "/(assistente|whatsapp|cl[ií]nica)/i"

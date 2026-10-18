@@ -36,7 +36,7 @@ Um envio pela API a um workflow publicado atualiza logo a versão em produção.
 | `Discord chatbot leads` | tool-avisar-humano |
 | `Discord chatbot erros` | error-handler, kb-sync |
 | `Eval chatbot` | chat-eval (o mesmo valor em `EVAL_HEADER_VALUE` no `.env`) |
-| `Google Drive kb` | kb-sync |
+| `Google kb service account` | kb-sync (conta de serviço `n8n-kb@nautica-n8n.iam.gserviceaccount.com`, só leitura) |
 
 - Widget: `https://n8n.nautica-ai-agency.com/webhook/a61384c2-724c-4657-a312-9316c5468950/chat`
   (fixo: o `webhookId` é determinístico no build).
@@ -96,19 +96,25 @@ node scripts/build.js --enviar chat-core       # só um
 
 ## Base de conhecimento
 
-- **Atualizar:** editar o Google Doc. Em até 15 minutos o `kb-sync` lê-o e, se
-  o contrato estiver cumprido, ativa a versão nova.
+- **Fonte:** `Base_Conhecimento_Chatbot_Nautica.md` no Google Drive
+  (`CONFIG.kb.driveFileId`), partilhado só com a conta de serviço, como leitor.
+- **Atualizar:** no Drive, "Gerir versões → Carregar nova versão" (o ID não
+  muda; um ficheiro novo teria outro ID e o `kb-sync` continuaria a ler o
+  antigo). Em até 15 minutos o `kb-sync` lê-o e, se o contrato estiver
+  cumprido, ativa a versão nova. Para ser já: "Execute workflow" no `kb-sync`.
+- **Se mudar o ficheiro:** partilhar o novo com a conta de serviço (leitor) e
+  atualizar `CONFIG.kb.driveFileId`; enviar o `kb-sync`.
 - **Contrato:** os 11 títulos como "Título 2", por esta ordem: Sobre a Nautica
   · Serviços · Para quem é e para quem não é · Processo · Preços · Chamada de
   diagnóstico · Objeções e respostas · Perguntas frequentes · Credibilidade ·
   O que o bot nunca deve dizer · Contactos e horário.
 - **Alerta "versão NÃO foi ativada":** o bot continua com a anterior. Corrigir
-  o Doc conforme os erros listados no alerta.
+  o ficheiro conforme os erros listados no alerta.
 - **Que versão está ativa:**
   ```sql
   SELECT id, left(hash, 12), origem, criado_em, ativada_em FROM kb_versions ORDER BY id DESC LIMIT 5;
   ```
-- **Voltar a uma versão anterior:** repor o texto no Google Doc (o hash é o
+- **Voltar a uma versão anterior:** repor o texto no ficheiro (o hash é o
   mesmo e a versão é reativada sem duplicar), ou em SQL:
   ```sql
   BEGIN;
@@ -226,6 +232,17 @@ COMMIT;
 Apagar também a página no "Chatbot site" (Notion) e a mensagem no Discord.
 As execuções bem-sucedidas não ficam gravadas no n8n; as com erro podem
 conter texto da conversa e são apagadas pela retenção do n8n.
+
+## Rodar a chave da conta de serviço (kb-sync)
+
+1. Google Cloud → IAM → Contas de serviço → `n8n-kb` → Chaves → criar uma
+   chave JSON nova.
+2. Colar o email e a chave privada na credencial `Google kb service account`.
+3. "Execute workflow" no `kb-sync` para confirmar.
+4. Apagar a chave antiga no Google Cloud.
+
+Se a chave vazar: apagá-la logo no Google Cloud. Só dava leitura a este
+ficheiro.
 
 ## Rodar o token dos evals
 

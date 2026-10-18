@@ -87,5 +87,5 @@ Alterações ao schema: nova migration numerada em `sql/`, testada em
 | Workflows | 9, criados e validados com o n8n-mcp |
 | Testes | 90 unitários + 17 SQL |
 | Evals | 10 casos iniciais |
-| Base de conhecimento | placeholder fictício até a base real estar no Google Doc |
+| Base de conhecimento | ficheiro Markdown no Google Drive, lido por uma conta de serviço |
 | Modelo | provisório (barato, via OpenRouter); a escolha final sai do eval |

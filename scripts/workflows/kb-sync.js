@@ -29,8 +29,10 @@ return [{ json: { docId: CONFIG.kb.driveFileId } }];
 `),
     }, [220, 0]);
 
+    // Conta de serviço (ver DECISIONS.md): só vê o ficheiro que lhe foi
+    // partilhado, só leitura (scope drive.readonly) e sem token a expirar.
     const driveExtra = {
-      credentials: L.credencial('googleDriveOAuth2Api', 'Google Drive kb'),
+      credentials: L.credencial('googleApi', 'Google kb service account'),
       retryOnFail: true,
       maxTries: 3,
       waitBetweenTries: 5000,
@@ -41,7 +43,7 @@ return [{ json: { docId: CONFIG.kb.driveFileId } }];
       method: 'GET',
       url: '=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}?fields=id,name,mimeType&supportsAllDrives=true',
       authentication: 'predefinedCredentialType',
-      nodeCredentialType: 'googleDriveOAuth2Api',
+      nodeCredentialType: 'googleApi',
       options: { timeout: 20000 },
     }, [330, 0], driveExtra);
 
@@ -50,17 +52,12 @@ return [{ json: { docId: CONFIG.kb.driveFileId } }];
       method: 'GET',
       url: "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.id + ($json.mimeType === 'application/vnd.google-apps.document' ? '/export?mimeType=text%2Fmarkdown' : '?alt=media&supportsAllDrives=true') }}",
       authentication: 'predefinedCredentialType',
-      nodeCredentialType: 'googleDriveOAuth2Api',
+      nodeCredentialType: 'googleApi',
       options: {
         timeout: 20000,
         response: { response: { responseFormat: 'text', outputPropertyName: 'markdown' } },
       },
-    }, [550, 0], {
-      credentials: L.credencial('googleDriveOAuth2Api', 'Google Drive kb'),
-      retryOnFail: true,
-      maxTries: 3,
-      waitBetweenTries: 5000,
-    });
+    }, [550, 0], driveExtra);
 
     const validar = w.no('[GUARD] Validar contrato', 'n8n-nodes-base.code', 2, {
       jsCode: L.codigo(['kb-contrato'], `

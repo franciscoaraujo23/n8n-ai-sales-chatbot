@@ -47,15 +47,15 @@
         "method": "GET",
         "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}?fields=id,name,mimeType&supportsAllDrives=true",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "options": {
           "timeout": 20000
         }
       },
       "credentials": {
-        "googleDriveOAuth2Api": {
+        "googleApi": {
           "id": null,
-          "name": "Google Drive kb"
+          "name": "Google kb service account"
         }
       },
       "retryOnFail": true,
@@ -75,7 +75,7 @@
         "method": "GET",
         "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.id + ($json.mimeType === 'application/vnd.google-apps.document' ? '/export?mimeType=text%2Fmarkdown' : '?alt=media&supportsAllDrives=true') }}",
         "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "googleDriveOAuth2Api",
+        "nodeCredentialType": "googleApi",
         "options": {
           "timeout": 20000,
           "response": {
@@ -87,9 +87,9 @@
         }
       },
       "credentials": {
-        "googleDriveOAuth2Api": {
+        "googleApi": {
           "id": null,
-          "name": "Google Drive kb"
+          "name": "Google kb service account"
         }
       },
       "retryOnFail": true,

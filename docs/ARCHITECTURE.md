@@ -33,7 +33,7 @@ flowchart LR
   TRL -- "cria / atualiza" --> NCS[("Notion<br/>Chatbot site")]
   TAH --> DL["Discord<br/>#leads"]
 
-  KB["kb-sync<br/>15 em 15 min"] --> GD["Google Doc<br/>(base de conhecimento)"]
+  KB["kb-sync<br/>15 em 15 min"] --> GD["Google Drive<br/>(base de conhecimento, .md)"]
   MAN["manutencao<br/>diário"]
 
   PG[("Postgres<br/>chatbot")]
@@ -132,7 +132,7 @@ O núcleo recebe sempre o mesmo payload, versionado:
 | `chat-core` | Execute Workflow | Guardas de conteúdo e custo, agente, pós-processamento, fallback, registo |
 | `tool-registar-lead` | Tool do agente + Schedule (5 min) | Postgres sempre; Notion com contacto válido; novas tentativas com backoff |
 | `tool-avisar-humano` | Tool do agente | Discord #leads, idempotente por (sessão, motivo) |
-| `kb-sync` | Schedule (15 min) | Google Doc → validação do contrato → `kb_versions` |
+| `kb-sync` | Schedule (15 min) | Ficheiro no Google Drive (conta de serviço, só leitura) → validação do contrato → `kb_versions` |
 | `manutencao` | Schedule (04:00) | Retenções (`limpar_dados_antigos()`) |
 | `error-handler` | Error Trigger + Execute Workflow | `errors` + alerta com anti-spam de 5 min |
 

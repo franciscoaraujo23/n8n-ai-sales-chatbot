@@ -8,7 +8,7 @@ versão em produção (2.29.10), não na documentação.
 
 - **Tudo em n8n, sem RAG.** A base de conhecimento é pequena e vai inteira no
   contexto. Menos peças, respostas mais consistentes, e a base é editada num
-  Google Doc por quem não programa.
+  ficheiro no Google Drive por quem não programa.
 - **Adaptador por canal + núcleo (`chat-core`).** O núcleo recebe um payload
   canónico versionado (`schema_version: 1`) e não sabe de que canal veio a
   mensagem; um teste garante que nenhum Code node do núcleo decide pelo canal.
@@ -102,6 +102,17 @@ versão em produção (2.29.10), não na documentação.
 - **Sem gravação de execuções bem-sucedidas** em nenhum workflow do chatbot:
   contêm texto e dados pessoais dos visitantes. Os erros continuam a ser
   gravados; o que é preciso de cada turno fica na tabela `turns`.
+- **A base de conhecimento é lida por uma conta de serviço Google**, não por
+  OAuth (2026-10-18). Três razões: acesso só a este documento (o ficheiro é
+  partilhado com a conta de serviço, como leitor, e com mais ninguém); só
+  leitura (scope `drive.readonly` e domínio permitido só `www.googleapis.com`);
+  e sem expiração de token (o OAuth depende do login de uma pessoa, e com a
+  app em modo de teste o Google expira o token ao fim de 7 dias). O custo é
+  uma chave privada de longa duração no n8n, rodada à mão (RUNBOOK).
+- **A base é um `.md` no Drive, não um Google Doc.** O `kb-sync` descarrega-o
+  tal como está; se um dia passar a Google Doc, exporta-o em Markdown sem
+  mudar mais nada. Atualizar com "Gerir versões → Carregar nova versão", para
+  o ID do ficheiro não mudar.
 - **Retenção de 12 meses** (alinhada com a política de privacidade), limpeza
   diária com `limpar_dados_antigos()`; erros, 3 meses.
 

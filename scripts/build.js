@@ -106,8 +106,9 @@ function resolver(wf, credenciais, workflows, avisos) {
   const copia = JSON.parse(JSON.stringify(wf));
   for (const no of copia.nodes) {
     for (const [tipo, ref] of Object.entries(no.credentials || {})) {
-      const c = credenciais.find((x) => x.type === tipo && x.name === ref.name);
-      if (c) ref.id = c.id;
+      // Nomes comparados sem maiúsculas ("OpenRouter Chatbot" = "OpenRouter chatbot").
+      const c = credenciais.find((x) => x.type === tipo && x.name.toLowerCase() === ref.name.toLowerCase());
+      if (c) Object.assign(ref, { id: c.id, name: c.name });
       else {
         delete ref.id;
         avisos.push(`credencial em falta: "${ref.name}" (${tipo}) no nó "${no.name}"`);

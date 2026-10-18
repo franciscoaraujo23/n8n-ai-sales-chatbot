@@ -37,7 +37,11 @@ const CONFIG = {
     sessaoPorDia: 60,
     globalPorMinuto: 30,
     globalPorDia: 1500,
-    custoDiarioMaxEur: 1,
+    // Kill switch: teto do custo estimado do dia, por canal; cada canal só
+    // conta o que gastou. Os evals não podem fechar o chat aos visitantes, e
+    // juntos (~1,75 USD) ficam abaixo do teto de 2 USD/dia da chave do
+    // OpenRouter. Canal que não esteja aqui tem teto 0: fica fechado.
+    custoDiarioMaxEur: { site: 1, eval: 0.6 },
     quarentenasMaxPorSessao: 3,
     quarentenaBloqueioMinutos: 60,
     ctasMaxPorConversa: 2,

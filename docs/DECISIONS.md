@@ -121,9 +121,15 @@ versão em produção (2.29.10), não na documentação.
 - **Custo estimado, não medido.** O AI Agent não passa o consumo de tokens aos
   nós seguintes. A estimativa (~4 caracteres por token) conta as idas extra ao
   modelo quando o agente usa tools, porque cada uma reenvia o contexto inteiro.
-- **Dois travões de custo:** o kill switch diário no núcleo (1 €/dia,
+- **Dois travões de custo:** o kill switch diário no núcleo (1 €/dia no site,
   estimado; um gasto acima disso com este tráfego é quase de certeza abuso ou
   um bug) e o limite de crédito na própria chave do OpenRouter (real).
+- **Um orçamento por canal** (2026-10-18): site 1 €/dia, evals 0,60 €/dia,
+  cada um a contar só o que gastou. No dia das comparações de modelos, os
+  evals esgotaram o orçamento partilhado e teriam fechado o chat aos
+  visitantes até à meia-noite. O teto vem do config por canal, não de um `if`
+  no núcleo, que continua sem ramificar pelo canal; um canal sem teto no config
+  fica fechado. A soma (~1,75 USD) fica abaixo dos 2 USD/dia da chave.
 - **Memória com `contextWindowLength` = 6**: o nó conta interações (pergunta +
   resposta), não mensagens; 6 interações são as 12 mensagens decididas.
 

@@ -153,9 +153,14 @@ function avaliarTrafego(contagens, cfg) {
   return { permitido: true, motivo: null };
 }
 
-/** Kill switch: bloqueia quando o custo estimado do dia chega ao teto. */
-function avaliarCusto(custoHojeEur, cfg) {
-  if (Number(custoHojeEur || 0) >= cfg.limites.custoDiarioMaxEur) {
+/** Teto diário do canal; sem teto configurado é 0 (canal fechado). */
+function tetoCustoDiario(canal, cfg) {
+  return Number(cfg.limites.custoDiarioMaxEur[canal]) || 0;
+}
+
+/** Kill switch: bloqueia quando o custo estimado do dia no canal chega ao teto. */
+function avaliarCusto(custoHojeEur, canal, cfg) {
+  if (Number(custoHojeEur || 0) >= tetoCustoDiario(canal, cfg)) {
     return { permitido: false, motivo: 'kill_switch_custo' };
   }
   return { permitido: true, motivo: null };
@@ -234,6 +239,7 @@ module.exports = {
   detetarInjecao,
   avaliarConteudo,
   avaliarTrafego,
+  tetoCustoDiario,
   avaliarCusto,
   estimarTokens,
   estimarConsumo,

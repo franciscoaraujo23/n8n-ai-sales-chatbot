@@ -54,8 +54,9 @@ return [{
     const contexto = w.no('[GUARD] Contexto do turno', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
 SELECT c.*
 FROM (SELECT $1::jsonb AS p) AS x
-CROSS JOIN LATERAL contexto_turno(p->>'session_id', (p->>'bloqueio')::integer, (p->>'mensagens')::integer) AS c
-`, 'JSON.stringify({ session_id: $json.payload.session_id, ...$json.parametros })'),
+CROSS JOIN LATERAL contexto_turno(p->>'session_id', (p->>'bloqueio')::integer, (p->>'mensagens')::integer,
+                                  'Europe/Lisbon', p->>'canal') AS c
+`, 'JSON.stringify({ session_id: $json.payload.session_id, canal: $json.payload.canal, ...$json.parametros })'),
     [440, 0], { credentials: L.CRED_PG, ...L.RETRY_PG });
 
     const avaliar = w.no('[GUARD] Avaliar conteúdo e custo', 'n8n-nodes-base.code', 2, {
@@ -65,7 +66,8 @@ const c = $input.first().json;
 
 let r = avaliarConteudo(p, CONFIG, { quarentenasRecentes: c.quarentenas_recentes });
 if (r.permitido) {
-  const custo = avaliarCusto(c.custo_hoje, CONFIG);
+  // O custo e o teto são os do canal do turno (orçamentos separados).
+  const custo = avaliarCusto(c.custo_hoje, p.canal, CONFIG);
   if (!custo.permitido) r = { ...r, ...custo };
 }
 // Sem base de conhecimento ativa, o agente não responde (inventaria).

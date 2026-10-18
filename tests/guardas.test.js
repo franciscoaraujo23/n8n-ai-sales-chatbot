@@ -108,12 +108,16 @@ test('avaliarTrafego: teto global primeiro, limites inclusivos', () => {
   assert.equal(g.avaliarTrafego(undefined, CONFIG).permitido, true);
 });
 
-test('avaliarCusto bloqueia a partir do teto diário', () => {
-  const teto = CONFIG.limites.custoDiarioMaxEur;
-  assert.equal(g.avaliarCusto(teto - 0.01, CONFIG).permitido, true);
-  assert.equal(g.avaliarCusto(teto, CONFIG).motivo, 'kill_switch_custo');
-  assert.equal(g.avaliarCusto(String(teto + 0.5), CONFIG).permitido, false);
-  assert.equal(g.avaliarCusto(null, CONFIG).permitido, true);
+test('avaliarCusto bloqueia a partir do teto diário do canal', () => {
+  for (const [canal, teto] of Object.entries(CONFIG.limites.custoDiarioMaxEur)) {
+    assert.equal(g.avaliarCusto(teto - 0.01, canal, CONFIG).permitido, true, canal);
+    assert.equal(g.avaliarCusto(teto, canal, CONFIG).motivo, 'kill_switch_custo', canal);
+    assert.equal(g.avaliarCusto(String(teto + 0.5), canal, CONFIG).permitido, false, canal);
+    assert.equal(g.avaliarCusto(null, canal, CONFIG).permitido, true, canal);
+  }
+  // Canal sem orçamento configurado fica fechado.
+  assert.equal(g.avaliarCusto(0, 'whatsapp', CONFIG).motivo, 'kill_switch_custo');
+  assert.equal(g.tetoCustoDiario('whatsapp', CONFIG), 0);
 });
 
 test('estimativas de tokens e custo', () => {

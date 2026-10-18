@@ -57,8 +57,8 @@ meses, e a tabela de contadores cresce a cada mensagem.
 - [ ] Base real ativa: `SELECT origem, left(hash,12), ativada_em FROM kb_versions WHERE ativa;`
       devolve uma linha com `origem` = ID do ficheiro no Drive (não `placeholder`).
 - [ ] Credenciais todas ligadas (`node scripts/build.js --enviar` sem avisos de credencial em falta).
-- [ ] Limite de crédito na chave do OpenRouter (está em 2 USD/dia) acima do
-      kill switch estimado (`custoDiarioMaxEur`, 1 €/dia).
+- [ ] Limite de crédito na chave do OpenRouter (está em 2 USD/dia) acima da
+      soma dos kill switches estimados (`custoDiarioMaxEur`: site 1 €, eval 0,60 €).
 
 **Workflows publicados, por esta ordem** (o n8n 2.x só publica um workflow se
 os sub-workflows que ele chama já estiverem publicados)
@@ -80,7 +80,7 @@ os sub-workflows que ele chama já estiverem publicados)
 - [ ] Mensagem pelo `chat-site` (página `/chat-teste`): resposta em `{ output }`, CORS do site.
 - [ ] Rate limit por sessão: mais de 6 mensagens num minuto → resposta fixa, turno com `guarda = limite_sessao`.
 - [ ] 3 quarentenas na mesma sessão → `sessao_bloqueada`.
-- [ ] Kill switch: baixar `custoDiarioMaxEur` temporariamente → resposta fixa sem LLM; repor.
+- [ ] Kill switch: baixar `custoDiarioMaxEur.site` temporariamente → resposta fixa sem LLM; repor.
 - [ ] Pedido de uma pessoa → aviso `pede_humano` no Discord #leads.
 - [ ] Lead real de teste com contacto (domínio fora da lista de teste, apagar a seguir):
       página no "Chatbot site", aviso automático `lead_qualificado`, "Já no CRM" correto.
@@ -95,7 +95,7 @@ os sub-workflows que ele chama já estiverem publicados)
 
 - **Mais rápido:** desativar `chat-site`. O widget passa a mostrar um erro;
   retirar o embed do site logo a seguir.
-- **Sem tirar o widget:** pôr `limites.custoDiarioMaxEur` a `0` em
+- **Sem tirar o widget:** pôr `limites.custoDiarioMaxEur.site` a `0` em
   `src/config.js` e enviar o `chat-core`. Todas as mensagens recebem a
   resposta fixa com o email e o link de marcação, sem chamar o modelo.
 - **Custo:** o limite de crédito na chave do OpenRouter é o travão duro, mesmo
@@ -253,7 +253,10 @@ node evals/correr.js --reavaliar evals/resultados/<ficheiro>.json
   antiga com `--reavaliar`, para as duas usarem as mesmas verificações.
 - Os resultados ficam em `evals/resultados/` (fora do git), com cada resposta
   completa. As verificações automáticas não dispensam lê-las.
-- Os evals passam pelo kill switch de custo, como produção.
+- Os evals passam pelo kill switch de custo, como produção, mas com orçamento
+  próprio (`custoDiarioMaxEur.eval`, 0,60 €/dia): uma bateria completa custa
+  cerca de 0,10–0,15 €. Esgotado, as respostas dos evals vêm com
+  `guarda = kill_switch_custo` e o site não é afetado.
 - **Sem efeitos reais:** o caso de qualificação usa um email `@exemplo.pt`,
   que é um domínio de teste (`CONFIG.leadsTeste.dominios`): o lead fica só no
   Postgres com `sync_estado = 'teste'`, sem Notion nem Discord. Limpar de vez

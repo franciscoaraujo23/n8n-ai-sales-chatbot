@@ -45,17 +45,51 @@ Um envio pela API a um workflow publicado atualiza logo a versão em produção.
 - Os workflows estão na pasta "Chatbot" do n8n (mover à mão: a API só move
   workflows para pastas a partir do n8n 2.32).
 
-## Pôr o bot no ar
+## Checklist de lançamento
 
-1. Migrations aplicadas (`sql/aplicar.sh --estado` sem pendentes).
-2. Base de conhecimento ativa: `SELECT origem, ativada_em FROM kb_versions WHERE ativa;`
-   tem de devolver uma linha. Sem base, o bot responde só com o fallback e
-   alerta (`sem_kb`).
-3. Credenciais todas ligadas (o `build.js --enviar` avisa as que faltam).
-4. Ativar `chat-eval` e correr `npm run evals`. Ler os resultados.
-5. Ativar `tool-registar-lead`, `kb-sync`, `manutencao` e `chat-site`.
-6. Testar na página `/chat-teste` do site.
-7. Pôr o embed (o mesmo da página de testes) nas páginas do site.
+Regra de ordem: **uma migration nova é aplicada antes de enviar os workflows
+que dependem dela.** E **o `manutencao` tem de estar ativo antes de publicar
+o `chat-site`**: sem ele não há limpeza de `rate_limits` nem retenção de 12
+meses, e a tabela de contadores cresce a cada mensagem.
+
+**Dados e configuração**
+- [ ] `sql/aplicar.sh --estado` sem pendentes.
+- [ ] Base real ativa: `SELECT origem, left(hash,12), ativada_em FROM kb_versions WHERE ativa;`
+      devolve uma linha com `origem` = ID do ficheiro no Drive (não `placeholder`).
+- [ ] Credenciais todas ligadas (`node scripts/build.js --enviar` sem avisos de credencial em falta).
+- [ ] Limite de crédito na chave do OpenRouter (está em 2 USD/dia) acima do
+      kill switch estimado (`custoDiarioMaxEur`, 1 €/dia).
+
+**Workflows publicados, por esta ordem** (o n8n 2.x só publica um workflow se
+os sub-workflows que ele chama já estiverem publicados)
+- [ ] error-handler
+- [ ] tool-avisar-humano e tool-registar-lead
+- [ ] guard-trafego
+- [ ] chat-core
+- [ ] kb-sync
+- [ ] **manutencao** (antes do chat-site)
+- [ ] chat-eval (só para evals)
+- [ ] chat-site (último)
+
+**Qualidade**
+- [ ] `npm run test:tudo` sem falhas.
+- [ ] `npm run evals` (5 corridas por caso) lido caso a caso; nenhum caso
+      crítico (injection, preços, nunca dizer, qualificação) abaixo de 100%.
+
+**Teste de aceitação ao vivo** (com email `@exemplo.pt`, que fica só no Postgres)
+- [ ] Mensagem pelo `chat-site` (página `/chat-teste`): resposta em `{ output }`, CORS do site.
+- [ ] Rate limit por sessão: mais de 6 mensagens num minuto → resposta fixa, turno com `guarda = limite_sessao`.
+- [ ] 3 quarentenas na mesma sessão → `sessao_bloqueada`.
+- [ ] Kill switch: baixar `custoDiarioMaxEur` temporariamente → resposta fixa sem LLM; repor.
+- [ ] Pedido de uma pessoa → aviso `pede_humano` no Discord #leads.
+- [ ] Lead real de teste com contacto (domínio fora da lista de teste, apagar a seguir):
+      página no "Chatbot site", aviso automático `lead_qualificado`, "Já no CRM" correto.
+- [ ] Erro tratado chega ao #erros (ex.: credencial do Notion inválida temporariamente → lead `pendente`, nova tentativa, alerta).
+
+**Site**
+- [ ] `privacy.html` atualizado e publicado.
+- [ ] Widget nas páginas definidas (não em `/obrigado` nem `/404`).
+- [ ] Limpar dados de teste (secção "Evals").
 
 ## Desligar o bot numa emergência
 
@@ -198,21 +232,28 @@ WHERE session_id = '<session_id>' ORDER BY criado_em;
 ## Evals
 
 ```bash
-npm run evals                         # todos os casos
-node evals/correr.js faq-servicos     # só um
+npm run evals                                   # todos os casos, 5 corridas cada
+node evals/correr.js faq-servicos               # só um
+node evals/correr.js --repeticoes 3             # outro número de corridas
+node evals/correr.js --reavaliar evals/resultados/<ficheiro>.json
+                                                # verificações atuais sobre respostas gravadas
 ```
 
 - Precisa do `chat-eval` ativo e do `.env` preenchido.
+- O resultado de cada caso é a **taxa de acerto em N corridas** (as respostas
+  variam). Para comparar antes/depois de uma correção, reavaliar a corrida
+  antiga com `--reavaliar`, para as duas usarem as mesmas verificações.
 - Os resultados ficam em `evals/resultados/` (fora do git), com cada resposta
   completa. As verificações automáticas não dispensam lê-las.
 - Os evals passam pelo kill switch de custo, como produção.
-- **Efeitos reais (decisão: opção B):** o caso de qualificação cria um lead no
-  Postgres, uma página no "Chatbot site" e um aviso no Discord. Limpar depois:
+- **Sem efeitos reais:** o caso de qualificação usa um email `@exemplo.pt`,
+  que é um domínio de teste (`CONFIG.leadsTeste.dominios`): o lead fica só no
+  Postgres com `sync_estado = 'teste'`, sem Notion nem Discord. Limpar de vez
+  em quando:
   ```sql
-  DELETE FROM handoffs WHERE session_id IN (SELECT session_id FROM leads WHERE email LIKE '%@exemplo.pt');
-  DELETE FROM leads WHERE email LIKE '%@exemplo.pt';
+  DELETE FROM handoffs WHERE session_id IN (SELECT session_id FROM leads WHERE sync_estado = 'teste');
+  DELETE FROM leads WHERE sync_estado = 'teste';
   ```
-  No Notion, apagar as páginas com email `@exemplo.pt`.
 
 ## Pedido de acesso ou apagamento de dados (RGPD)
 

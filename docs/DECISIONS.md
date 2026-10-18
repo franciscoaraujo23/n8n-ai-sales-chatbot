@@ -52,6 +52,19 @@ versão em produção (2.29.10), não na documentação.
   link útil é o Markdown que o código monta ou deixa passar.
 - **`motivo` do `avisar_humano` é um enum fechado.** Com texto livre, a
   idempotência "não avisar duas vezes salvo se o motivo mudar" não funciona.
+- **Lead com contacto avisa a equipa automaticamente** (2026-10-18). O
+  objetivo comercial do bot é um lead com contacto chegar à equipa; nos evals
+  o modelo esqueceu-se de chamar `avisar_humano` em 4 de 5 conversas. O
+  `tool-registar-lead` avisa sozinho (`lead_qualificado`) depois da
+  sincronização, para o aviso já levar o link do Notion e a verificação nos CRMs.
+- **`lead_qualificado` reservado ao aviso automático.** Se o agente o pedir,
+  passa a `outro`: um aviso prematuro, ainda sem contacto, ocupava o par
+  (conversa, motivo) e bloqueava o automático.
+- **Objeções respondidas como na base**, sem sublinhar o que a empresa ainda
+  não tem. Com o `gpt-4.1-mini`, o caso "quem-somos" continua a falhar (o bot
+  diz que não tem clientes antes de reduzir o risco); três formulações do
+  prompt não resolveram, e a pela negativa piorou. Fica como critério da
+  escolha do modelo.
 - **O `session_id` das tools vem do contexto, nunca do LLM**: o modelo não
   pode registar dados noutra conversa.
 - **Sem base de conhecimento ativa, o agente não é chamado** (motivo
@@ -184,7 +197,18 @@ versão em produção (2.29.10), não na documentação.
 - **Verificações determinísticas, não um juiz LLM**: guarda, tools, chamada à
   ação, pt-BR, preços fora da base, fugas do prompt. A qualidade da venda lê-se
   nos resultados gravados.
-- **Efeitos reais nos evals: opção B** (2026-10-18). O caso de qualificação
-  cria um lead de teste no Postgres, no Notion e no Discord. Com o volume atual
-  do site, limpar à mão (`@exemplo.pt`) é mais simples do que um modo de eval
-  nas tools. Revisitar se os evals passarem a correr com frequência.
+- **Cada caso corre 5 vezes e conta a taxa de acerto** (2026-10-18). As
+  respostas do modelo variam de corrida para corrida; com uma só corrida, uma
+  comparação antes/depois pode melhorar ou piorar por sorte. `--reavaliar`
+  aplica as verificações atuais a respostas já gravadas, para comparar com as
+  mesmas regras sem voltar a chamar o bot.
+- **Ler as falhas antes de mexer no bot.** Na primeira bateria, metade das
+  falhas eram da verificação (paráfrases honestas que as regex não
+  apanhavam, um "marcar" confundido com o marcador). Corrigir a verificação e
+  reavaliar; só depois corrigir o bot.
+- **Leads de teste sem efeitos reais** (2026-10-18, substitui a opção B).
+  Leads cujo email final é de um domínio de teste (`CONFIG.leadsTeste`) ficam
+  só no Postgres (`sync_estado = 'teste'`): sem Notion, sem Discord, fora das
+  novas tentativas. A regra decide pelo dado, não pelo canal, e protege também
+  de visitantes que escrevem emails de exemplo. Com 5 corridas por caso, a
+  opção B enchia o canal de leads.

@@ -37,7 +37,7 @@ if (!validarSessionId(e.session_id)) {
   return [{ json: { valido: false, motivo: 'sessao_invalida' } }];
 }
 const r = validarLead(e);
-return [{ json: { valido: true, session_id: e.session_id, ...r } }];
+return [{ json: { valido: true, session_id: e.session_id, ...r, dominiosTeste: CONFIG.leadsTeste.dominios } }];
 `),
     }, [220, 0]);
 
@@ -45,7 +45,7 @@ return [{ json: { valido: true, session_id: e.session_id, ...r } }];
 
     const gravar = w.no('[TOOL] Gravar lead (Postgres)', 'n8n-nodes-base.postgres', 2.6,
       L.paramsSql('SELECT * FROM registar_lead($1::jsonb)',
-        'JSON.stringify({ session_id: $json.session_id, ...$json.lead })'),
+        'JSON.stringify({ session_id: $json.session_id, ...$json.lead, dominios_teste: $json.dominiosTeste })'),
       [660, -100], { credentials: L.CRED_PG });
 
     const temContacto = w.no('[TOOL] Tem contacto?', 'n8n-nodes-base.if', 2.2,
@@ -172,7 +172,8 @@ return {
     // do Notion e a verificação nos CRMs.
     const GRAVADO = "$('[TOOL] Gravar lead (Postgres)')";
     const comContacto = w.no('[GUARD] Lead com contacto nesta chamada?', 'n8n-nodes-base.if', 2.2,
-      L.paramsSe(`${GRAVADO}.isExecuted && ${GRAVADO}.first().json.sync_estado !== 'sem_contacto'`), [3520, 100]);
+      // Só leads reais com contacto ('pendente'); 'teste' e 'sem_contacto' não avisam.
+      L.paramsSe(`${GRAVADO}.isExecuted && ${GRAVADO}.first().json.sync_estado === 'pendente'`), [3520, 100]);
 
     const avisar = w.no('[TOOL] Avisar a equipa (lead com contacto)', 'n8n-nodes-base.executeWorkflow', 1.2, {
       source: 'database',
@@ -180,6 +181,7 @@ return {
       workflowInputs: L.entradas({
         session_id: `={{ ${GRAVADO}.first().json.session_id }}`,
         motivo: 'lead_qualificado',
+        origem: 'automatico',
         resumo: `={{ ${GRAVADO}.first().json.resumo || ${GRAVADO}.first().json.problema || 'Lead com contacto registado pelo chatbot (sem resumo).' }}`,
       }),
       mode: 'once',

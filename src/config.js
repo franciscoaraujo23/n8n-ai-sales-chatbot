@@ -63,6 +63,16 @@ const CONFIG = {
   marcadorCta: '[[MARCAR]]',
 
   motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],
+  // Reservado ao aviso automático do tool-registar-lead: se o agente o pedir,
+  // fica 'outro' (senão, um aviso prematuro sem contacto bloquearia o
+  // automático, que é único por conversa e motivo).
+  motivoAutomatico: 'lead_qualificado',
+
+  // Leads com email destes domínios ficam só no Postgres (estado 'teste'):
+  // sem Notion nem Discord. Evals e visitantes que escrevem emails de exemplo.
+  leadsTeste: {
+    dominios: ['exemplo.pt', 'exemplo.com', 'example.com', 'example.org', 'example.net', 'teste.pt', 'test.com'],
+  },
 
   // Base de conhecimento: ficheiro no Google Drive lido pelo kb-sync. Pode ser
   // um .md (descarregado tal como está) ou um Google Doc (exportado em

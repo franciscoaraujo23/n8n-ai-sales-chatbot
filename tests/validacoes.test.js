@@ -58,8 +58,10 @@ test('limparCampo trata vazios e controlo', () => {
   assert.equal(v.limparCampo('abcdefghijkl', 5), 'abcde');
 });
 
-test('validarMotivo só aceita o enum', () => {
-  assert.equal(v.validarMotivo('lead_qualificado', CONFIG), 'lead_qualificado');
+test('validarMotivo só aceita o enum; lead_qualificado só pelo aviso automático', () => {
+  assert.equal(v.validarMotivo('lead_qualificado', CONFIG, 'automatico'), 'lead_qualificado');
+  assert.equal(v.validarMotivo('lead_qualificado', CONFIG, 'agente'), 'outro');
+  assert.equal(v.validarMotivo('lead_qualificado', CONFIG), 'outro');
   assert.equal(v.validarMotivo(' Pede_Humano ', CONFIG), 'pede_humano');
   assert.equal(v.validarMotivo('o cliente quer falar com alguém', CONFIG), 'outro');
   assert.equal(v.validarMotivo(undefined, CONFIG), 'outro');

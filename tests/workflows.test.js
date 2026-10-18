@@ -178,5 +178,6 @@ test('registar-lead: aviso automático à equipa em todos os caminhos para a res
     .sort();
   assert.deepEqual(paraResposta, ['[TOOL] Avisar a equipa (lead com contacto)', ifNo].sort());
   const cond = RL.nodes.find((n) => n.name === ifNo).parameters.conditions.conditions[0].leftValue;
-  assert.ok(cond.includes('isExecuted') && cond.includes("sync_estado !== 'sem_contacto'"));
+  assert.ok(cond.includes('isExecuted') && cond.includes("sync_estado === 'pendente'"));
+  assert.equal(avisar.parameters.workflowInputs.value.origem, 'automatico');
 });

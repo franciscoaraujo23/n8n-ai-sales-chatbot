@@ -92,10 +92,16 @@ function validarLead(entrada) {
   return { lead, contactoValido: email.valido || telefone.valido, avisos };
 }
 
-/** Motivo do avisar_humano: enum fechado, para a idempotência funcionar. */
-function validarMotivo(motivo, cfg) {
+/**
+ * Motivo do avisar_humano: enum fechado, para a idempotência funcionar. O
+ * motivo automático (lead com contacto) só pode vir do próprio fluxo
+ * (origem 'automatico'); pedido pelo agente, passa a 'outro'.
+ */
+function validarMotivo(motivo, cfg, origem) {
   const m = String(motivo || '').trim().toLowerCase();
-  return cfg.motivosHandoff.includes(m) ? m : 'outro';
+  if (!cfg.motivosHandoff.includes(m)) return 'outro';
+  if (m === cfg.motivoAutomatico && origem !== 'automatico') return 'outro';
+  return m;
 }
 
 // --- o build corta a partir daqui ---

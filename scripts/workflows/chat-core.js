@@ -164,12 +164,13 @@ return [{
 
     const toolHumano = w.no('[TOOL] avisar_humano', '@n8n/n8n-nodes-langchain.toolWorkflow', 2.2, {
       description:
-        'Avisa a equipa da Nautica sobre esta conversa. Usa quando o visitante pede uma pessoa, ' +
+        'Avisa a equipa da Nautica sobre esta conversa. Usa quando o visitante pede uma pessoa ' +
         'faz uma reclamação, ou é um lead qualificado que já deixou contacto.',
       workflowId: L.refWorkflow('Chatbot – tool-avisar-humano'),
       workflowInputs: L.entradas({
         session_id: sessao,
-        motivo: `={{ $fromAI('motivo', 'Exatamente um de: ${CONFIG.motivosHandoff.join(', ')}', 'string') }}`,
+        motivo: `={{ $fromAI('motivo', 'Exatamente um de: ${CONFIG.motivosHandoff.filter((m) => m !== CONFIG.motivoAutomatico).join(', ')}', 'string') }}`,
+        origem: 'agente',
         resumo: "={{ $fromAI('resumo', 'Resumo da conversa para a equipa continuar sem a reler, em português de Portugal', 'string') }}",
       }),
     }, [1620, 20]);

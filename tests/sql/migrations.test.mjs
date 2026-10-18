@@ -298,3 +298,22 @@ test('registar_turno: aceita JSON parcial e trata arrays e nulls', async () => {
   assert.equal(t.fallback, false);
   assert.equal(new Date(t.recebido_em).toISOString(), '2026-10-17T10:00:00.000Z');
 });
+
+// --- 004: leads de teste --------------------------------------------------------
+
+test('leads com email de teste ficam em "teste" e nunca são reservados para sincronizar', async () => {
+  const db = await baseNova();
+  const dominios = ['Exemplo.PT', 'example.com'];
+  let l = await registar(db, { session_id: SESSAO, email: 'ana@exemplo.pt', dominios_teste: dominios });
+  assert.equal(l.sync_estado, 'teste');
+  // Uma chamada seguinte só com telefone não o transforma num lead real.
+  l = await registar(db, { session_id: SESSAO, telefone: '+351912345678', dominios_teste: dominios });
+  assert.equal(l.sync_estado, 'teste');
+  assert.deepEqual(await reservar(db, null), []);
+  assert.deepEqual(await reservar(db, SESSAO), []);
+
+  const real = await registar(db, { session_id: 'outra', email: 'ana@clinica.pt', dominios_teste: dominios });
+  assert.equal(real.sync_estado, 'pendente');
+  const semLista = await registar(db, { session_id: 'terceira', email: 'x@exemplo.pt' });
+  assert.equal(semLista.sync_estado, 'pendente', 'sem lista, nenhum domínio é de teste');
+});

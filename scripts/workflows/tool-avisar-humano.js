@@ -19,7 +19,8 @@ module.exports = {
 
     const entrada = w.no('[TRIGGER] Chamada do agente', 'n8n-nodes-base.executeWorkflowTrigger', 1.1, {
       inputSource: 'workflowInputs',
-      workflowInputs: { values: ['session_id', 'motivo', 'resumo'].map((name) => ({ name, type: 'string' })) },
+      // origem: 'agente' (tool do chat-core) ou 'automatico' (tool-registar-lead).
+      workflowInputs: { values: ['session_id', 'motivo', 'resumo', 'origem'].map((name) => ({ name, type: 'string' })) },
     }, [0, 0]);
 
     const validar = w.no('[GUARD] Validar pedido', 'n8n-nodes-base.code', 2, {
@@ -30,7 +31,7 @@ return [{
   json: {
     valido: true,
     session_id: e.session_id,
-    motivo: validarMotivo(e.motivo, CONFIG),
+    motivo: validarMotivo(e.motivo, CONFIG, e.origem),
     resumo: limparCampo(e.resumo, LIMITES_CAMPOS_LEAD.resumo) || '(sem resumo)',
   },
 }];

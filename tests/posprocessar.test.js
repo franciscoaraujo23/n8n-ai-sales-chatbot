@@ -64,7 +64,7 @@ test('aplicarCta troca o marcador pelo link pré-preenchido', () => {
   const r = p.aplicarCta('Se quiser, pode [[MARCAR]].', { nome: 'Ana Silva', email: 'ana@x.pt', ctasAnteriores: 0 }, CONFIG);
   assert.equal(
     r.texto,
-    'Se quiser, pode [marcar a chamada de diagnóstico](https://cal.com/nautica-ai-xuismz/30min?name=Ana+Silva&email=ana%40x.pt).'
+    'Se quiser, pode [marcar a chamada de diagnóstico](https://cal.com/nautica-ai-xuismz/30min?name=Ana%20Silva&email=ana%40x.pt).'
   );
   assert.equal(r.ctaUsada, true);
 

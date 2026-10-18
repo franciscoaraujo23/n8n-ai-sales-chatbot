@@ -23,7 +23,10 @@ function correr(workflow, nome, { entrada = [{}], nos = {} } = {}) {
     const json = nos[outro];
     return { item: { json }, first: () => ({ json }), all: () => [{ json }] };
   };
-  const fn = new Function('$', '$json', '$input', no.parameters.jsCode);
+  // Sem URL nem URLSearchParams: o ambiente isolado dos Code nodes do n8n
+  // não os tem (um ReferenceError em produção apanhou isto).
+  const fn0 = new Function('$', '$json', '$input', 'URL', 'URLSearchParams', no.parameters.jsCode);
+  const fn = ($, json, input) => fn0($, json, input, undefined, undefined);
   if (no.parameters.mode === 'runOnceForEachItem') {
     return entrada.map((json) => fn($, json, { item: { json } }).json);
   }

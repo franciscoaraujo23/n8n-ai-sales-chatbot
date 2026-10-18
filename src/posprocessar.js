@@ -10,20 +10,33 @@
  * JavaScript puro, sem require, copiado para os Code nodes pelo build.
  */
 
+/**
+ * Partes de um URL http(s). Os Code nodes do n8n correm num ambiente
+ * isolado sem o objeto global URL, por isso a leitura é feita aqui.
+ * Devolve null se não for um URL http(s) válido.
+ */
+function partirUrl(url) {
+  const m = /^(https?):\/\/(?:([^@/?#]*)@)?([^/:?#]+)(?::(\d*))?([^?#]*)(\?[^#]*)?(#.*)?$/i.exec(String(url).trim());
+  if (!m) return null;
+  return {
+    protocolo: m[1].toLowerCase(),
+    credenciais: m[2] || '',
+    host: m[3].toLowerCase(),
+    porta: m[4] || '',
+    caminho: m[5] || '/',
+    query: m[6] || '',
+  };
+}
+
 /** O URL pode aparecer numa resposta? Só https, sem credenciais nem porta. */
 function linkPermitido(url, cfg) {
   if (/^mailto:/i.test(url)) {
     return url.slice(7).split('?')[0].toLowerCase() === cfg.site.emailContacto.toLowerCase();
   }
-  let u;
-  try {
-    u = new URL(url);
-  } catch (e) {
-    return false;
-  }
-  if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
-  const caminho = u.pathname.endsWith('/') ? u.pathname : u.pathname + '/';
-  return cfg.linksPermitidos.some((p) => u.hostname === p.host && caminho.startsWith(p.prefixo));
+  const u = partirUrl(url);
+  if (!u || u.protocolo !== 'https' || u.credenciais || u.porta) return false;
+  const caminho = u.caminho.endsWith('/') ? u.caminho : u.caminho + '/';
+  return cfg.linksPermitidos.some((p) => u.host === p.host && caminho.startsWith(p.prefixo));
 }
 
 /**
@@ -89,10 +102,16 @@ function cortarResposta(texto, max) {
 
 /** URL do Cal.com com nome e email pré-preenchidos (só os que existem). */
 function urlCal(nome, email, cfg) {
-  const u = new URL(cfg.cal.url);
-  if (nome) u.searchParams.set('name', nome);
-  if (email) u.searchParams.set('email', email);
-  return u.toString();
+  const params = [];
+  if (nome) params.push('name=' + encodeURIComponent(nome));
+  if (email) params.push('email=' + encodeURIComponent(email));
+  return cfg.cal.url + (params.length ? '?' + params.join('&') : '');
+}
+
+/** Conta do Cal.com no URL configurado ("nautica-ai-xuismz"). */
+function contaCal(cfg) {
+  const u = partirUrl(cfg.cal.url);
+  return u ? u.caminho.split('/')[1] : '';
 }
 
 /**
@@ -126,10 +145,7 @@ function aplicarCta(texto, ctx, cfg) {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  if (!usada) {
-    const cal = new URL(cfg.cal.url);
-    usada = t.includes(cal.hostname + '/' + cal.pathname.split('/')[1] + '/');
-  }
+  if (!usada) usada = t.includes('cal.com/' + contaCal(cfg) + '/');
   return { texto: t, ctaUsada: usada };
 }
 
@@ -139,7 +155,7 @@ function aplicarCta(texto, ctx, cfg) {
  * o máximo de chamadas à ação e são removidos se esse máximo já foi usado.
  */
 function calParaMarcador(texto, cfg) {
-  const conta = new URL(cfg.cal.url).pathname.split('/')[1].replace(/[^a-z0-9-]/gi, '');
+  const conta = contaCal(cfg).replace(/[^a-z0-9-]/gi, '');
   const url = 'https?://(?:app\\.)?cal\\.com/' + conta + '(?:/[^\\s)\\]]*)?';
   return String(texto)
     .replace(new RegExp('\\[[^\\]\\n]*\\]\\(\\s*<?' + url + '>?\\s*\\)', 'g'), cfg.marcadorCta)

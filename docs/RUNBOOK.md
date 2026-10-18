@@ -14,16 +14,18 @@ docker compose exec -T postgres psql -U chatbot -d chatbot
 |---|---|---|
 | Chatbot – chat-site | `XywjB1FtsK6MGHOU` | Sim (webhook do widget) |
 | Chatbot – chat-eval | `9NPGuRlkR065jBPo` | Só para correr evals |
-| Chatbot – guard-trafego | `F2QZy0t2lz2OnPrI` | Não (sub-workflow)\* |
-| Chatbot – chat-core | `jgXs49EBOcyCRRmm` | Não (sub-workflow)\* |
-| Chatbot – tool-registar-lead | `LwnMitju0rWHtjzA` | Sim, para as novas tentativas de 5 em 5 min |
-| Chatbot – tool-avisar-humano | `xA0GYSFEpnO8SqXE` | Não (sub-workflow)\* |
+| Chatbot – guard-trafego | `F2QZy0t2lz2OnPrI` | Sim (sub-workflow)\* |
+| Chatbot – chat-core | `jgXs49EBOcyCRRmm` | Sim (sub-workflow)\* |
+| Chatbot – tool-registar-lead | `LwnMitju0rWHtjzA` | Sim (sub-workflow e novas tentativas de 5 em 5 min) |
+| Chatbot – tool-avisar-humano | `xA0GYSFEpnO8SqXE` | Sim (sub-workflow)\* |
 | Chatbot – kb-sync | `IokQ5maWS2HHT5vd` | Sim (agendado) |
 | Chatbot – manutencao | `bC7hgRgOeLyuoWtT` | Sim (agendado) |
-| Chatbot – error-handler | `c0IJvGaav2ybBFB3` | Não (errorWorkflow e sub-workflow)\* |
+| Chatbot – error-handler | `c0IJvGaav2ybBFB3` | Sim (sub-workflow dos ramos `[ERROR]`)\* |
 
-\* A confirmar no primeiro teste real: se o n8n 2.x exigir sub-workflows
-publicados, ativam-se também.
+\* O n8n 2.x só publica um workflow se os sub-workflows que ele chama já
+estiverem publicados. Ordem: error-handler → tool-registar-lead e
+tool-avisar-humano → guard-trafego → chat-core → chat-eval e chat-site.
+Um envio pela API a um workflow publicado atualiza logo a versão em produção.
 
 | Credencial no n8n | Usada em |
 |---|---|

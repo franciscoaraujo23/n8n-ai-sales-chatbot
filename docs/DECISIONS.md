@@ -153,6 +153,13 @@ versão em produção (2.29.10), não na documentação.
   inexistentes antes de chegar ao n8n.
 - **IDs de nós e de webhooks determinísticos.** O URL do widget não muda entre
   envios, e os exports só mudam quando o conteúdo muda.
+- **Sem `URL` nos Code nodes.** O ambiente isolado dos Code nodes do n8n
+  2.29 não tem o objeto global `URL` (descoberto no primeiro teste real: um
+  `ReferenceError` no pós-processamento). O código de `/src` lê URLs à mão, e o
+  harness dos testes corre os Code nodes sem `URL` nem `URLSearchParams`.
+- **Sub-workflows publicados antes de quem os chama.** O n8n 2.x recusa
+  publicar um workflow que referencia sub-workflows não publicados. Um envio
+  pela API a um workflow publicado atualiza logo a versão em produção.
 - **Envio sempre inativo** para workflows novos; validação com o n8n-mcp antes
   e depois de cada envio.
 - **Repositório em LF** (`.gitattributes`): o `aplicar.sh` corre no Linux da

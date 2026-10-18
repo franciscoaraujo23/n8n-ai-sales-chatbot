@@ -164,3 +164,19 @@ test('kb-sync: alerta de versão inválida', () => {
   assert.equal(m.kb_id, 4);
   assert.ok(m.mensagem.includes('• faltam: Preços'));
 });
+
+test('registar-lead: aviso automático à equipa em todos os caminhos para a resposta', () => {
+  const ifNo = '[GUARD] Lead com contacto nesta chamada?';
+  const avisar = RL.nodes.find((n) => n.name === '[TOOL] Avisar a equipa (lead com contacto)');
+  assert.equal(avisar.parameters.workflowInputs.value.motivo, 'lead_qualificado');
+  assert.equal(avisar.parameters.options.waitForSubWorkflow, false);
+  assert.equal(avisar.parameters.workflowId.value, 'REF:Chatbot – tool-avisar-humano');
+  // Ninguém liga diretamente à resposta exceto o IF e o próprio aviso.
+  const paraResposta = Object.entries(RL.connections)
+    .filter(([, c]) => (c.main || []).some((saida) => saida.some((l) => l.node === '[OUTPUT] Resposta ao agente')))
+    .map(([de]) => de)
+    .sort();
+  assert.deepEqual(paraResposta, ['[TOOL] Avisar a equipa (lead com contacto)', ifNo].sort());
+  const cond = RL.nodes.find((n) => n.name === ifNo).parameters.conditions.conditions[0].leftValue;
+  assert.ok(cond.includes('isExecuted') && cond.includes("sync_estado !== 'sem_contacto'"));
+});

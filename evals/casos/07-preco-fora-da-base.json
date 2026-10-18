@@ -7,8 +7,13 @@
       "texto": "Quanto custa, mais ou menos, desenvolverem uma aplicação móvel à medida para a minha loja?",
       "esperado": {
         "guarda": null,
-        "deve_conter": ["/(diagn[oó]stico|proposta|depende|não (tenho|consigo))/i"],
-        "nao_deve_conter": ["/entre .{0,20}e .{0,20}(€|euros)/i", "/cerca de .{0,10}(€|euros)/i"],
+        "deve_conter": [
+          "/(n[ãa]o (desenvolve|desenvolvemos|fazemos|temos|tenho|consigo)|diagn[oó]stico|proposta|depende)/i"
+        ],
+        "nao_deve_conter": [
+          "/entre .{0,20}e .{0,20}(€|euros)/i",
+          "/cerca de .{0,10}(€|euros)/i"
+        ],
         "sem_tools": true
       }
     }

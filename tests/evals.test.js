@@ -71,3 +71,22 @@ test('todos os casos em evals/casos são JSON válidos e bem formados', () => {
     }
   }
 });
+
+test('agregarCorridas: taxa de acerto e falhas contadas por corrida', () => {
+  const corrida = (ok, falhas) => ({
+    ok,
+    turnos: [{ verificacoes: falhas.map((f) => ({ verificacao: f, ok: false })).concat([{ verificacao: 'x', ok: true }]) }],
+    conversa: [],
+  });
+  const a = v.agregarCorridas([corrida(true, []), corrida(false, ['sem pt-BR']), corrida(false, ['sem pt-BR', 'usou y']), corrida(true, [])]);
+  assert.deepEqual([a.acertos, a.total, a.taxa], [2, 4, 0.5]);
+  assert.deepEqual(a.falhas, [{ verificacao: 'turno 1: sem pt-BR', vezes: 2 }, { verificacao: 'turno 1: usou y', vezes: 1 }]);
+});
+
+test('casos sem caracteres de controlo (um \b mal escapado vira backspace)', () => {
+  const pasta = path.join(__dirname, '..', 'evals', 'casos');
+  for (const f of fs.readdirSync(pasta).filter((x) => x.endsWith('.json'))) {
+    const texto = JSON.stringify(JSON.parse(fs.readFileSync(path.join(pasta, f), 'utf8')));
+    assert.ok(!/\[bfv]|[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(texto.replace(/\\/g, '')), f);
+  }
+});

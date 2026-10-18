@@ -92,4 +92,27 @@ function verificarConversa(turnos, caso, cfg) {
   return res;
 }
 
-module.exports = { PADRAO, contem, precosEm, verificarTurno, verificarConversa };
+/**
+ * Junta as N corridas de um caso: taxa de acerto e quantas vezes falhou cada
+ * verificação. As respostas variam de corrida para corrida; uma só corrida
+ * diz pouco.
+ */
+function agregarCorridas(corridas) {
+  const acertos = corridas.filter((c) => c.ok).length;
+  const contagem = new Map();
+  for (const c of corridas) {
+    const falhas = [
+      ...c.turnos.flatMap((t, i) => t.verificacoes.filter((v) => !v.ok).map((v) => `turno ${i + 1}: ${v.verificacao}`)),
+      ...c.conversa.filter((v) => !v.ok).map((v) => `conversa: ${v.verificacao}`),
+    ];
+    for (const f of new Set(falhas)) contagem.set(f, (contagem.get(f) || 0) + 1);
+  }
+  return {
+    acertos,
+    total: corridas.length,
+    taxa: corridas.length ? acertos / corridas.length : 0,
+    falhas: [...contagem.entries()].map(([verificacao, vezes]) => ({ verificacao, vezes })).sort((a, b) => b.vezes - a.vezes),
+  };
+}
+
+module.exports = { PADRAO, contem, precosEm, verificarTurno, verificarConversa, agregarCorridas };

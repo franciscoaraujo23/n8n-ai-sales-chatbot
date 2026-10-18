@@ -618,12 +618,113 @@
       "onError": "continueRegularOutput"
     },
     {
+      "id": "53abc039-397f-4ae5-ab1c-8d5238f20b85",
+      "name": "[GUARD] Lead com contacto nesta chamada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3520,
+        100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "5bafbd13-9282-47ed-a3d7-8850f68ffadd",
+              "leftValue": "={{ $('[TOOL] Gravar lead (Postgres)').isExecuted && $('[TOOL] Gravar lead (Postgres)').first().json.sync_estado !== 'sem_contacto' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "7c0e5287-6e90-43f1-a20a-3ccf838b6185",
+      "name": "[TOOL] Avisar a equipa (lead com contacto)",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        3740,
+        200
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "REF:Chatbot – tool-avisar-humano",
+          "cachedResultName": "Chatbot – tool-avisar-humano"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "session_id": "={{ $('[TOOL] Gravar lead (Postgres)').first().json.session_id }}",
+            "motivo": "lead_qualificado",
+            "resumo": "={{ $('[TOOL] Gravar lead (Postgres)').first().json.resumo || $('[TOOL] Gravar lead (Postgres)').first().json.problema || 'Lead com contacto registado pelo chatbot (sem resumo).' }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "session_id",
+              "displayName": "session_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "resumo",
+              "displayName": "resumo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
       "id": "16439fba-5d84-41b8-ae9d-cae431f91c31",
       "name": "[OUTPUT] Resposta ao agente",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3740,
+        3960,
         0
       ],
       "parameters": {
@@ -665,7 +766,7 @@
         ],
         [
           {
-            "node": "[OUTPUT] Resposta ao agente",
+            "node": "[GUARD] Lead com contacto nesta chamada?",
             "type": "main",
             "index": 0
           }
@@ -694,7 +795,7 @@
         ],
         [
           {
-            "node": "[OUTPUT] Resposta ao agente",
+            "node": "[GUARD] Lead com contacto nesta chamada?",
             "type": "main",
             "index": 0
           }
@@ -745,7 +846,7 @@
         ],
         [
           {
-            "node": "[OUTPUT] Resposta ao agente",
+            "node": "[GUARD] Lead com contacto nesta chamada?",
             "type": "main",
             "index": 0
           }
@@ -851,7 +952,7 @@
         ],
         [
           {
-            "node": "[OUTPUT] Resposta ao agente",
+            "node": "[GUARD] Lead com contacto nesta chamada?",
             "type": "main",
             "index": 0
           }
@@ -859,6 +960,35 @@
       ]
     },
     "[ERROR] Lead não chegou ao Notion": {
+      "main": [
+        [
+          {
+            "node": "[GUARD] Lead com contacto nesta chamada?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[GUARD] Lead com contacto nesta chamada?": {
+      "main": [
+        [
+          {
+            "node": "[TOOL] Avisar a equipa (lead com contacto)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "[OUTPUT] Resposta ao agente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[TOOL] Avisar a equipa (lead com contacto)": {
       "main": [
         [
           {

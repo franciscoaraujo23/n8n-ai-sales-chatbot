@@ -163,6 +163,29 @@ return {
     const erroSync = w.no('[ERROR] Lead não chegou ao Notion', 'n8n-nodes-base.executeWorkflow', 1.2,
       eSync.parametros, [3520, -200], eSync.extra);
 
+    // --- Aviso automático à equipa ------------------------------------------
+    // Um lead com contacto tem de chegar à equipa: não fica dependente de o
+    // modelo se lembrar de chamar avisar_humano. Corre só na chamada da tool
+    // (nas novas tentativas agendadas o nó de gravação não correu), sem
+    // esperar, e é idempotente: a mesma conversa não gera dois avisos com o
+    // mesmo motivo. Vem depois da sincronização, para o aviso já levar o link
+    // do Notion e a verificação nos CRMs.
+    const GRAVADO = "$('[TOOL] Gravar lead (Postgres)')";
+    const comContacto = w.no('[GUARD] Lead com contacto nesta chamada?', 'n8n-nodes-base.if', 2.2,
+      L.paramsSe(`${GRAVADO}.isExecuted && ${GRAVADO}.first().json.sync_estado !== 'sem_contacto'`), [3520, 100]);
+
+    const avisar = w.no('[TOOL] Avisar a equipa (lead com contacto)', 'n8n-nodes-base.executeWorkflow', 1.2, {
+      source: 'database',
+      workflowId: L.refWorkflow('Chatbot – tool-avisar-humano'),
+      workflowInputs: L.entradas({
+        session_id: `={{ ${GRAVADO}.first().json.session_id }}`,
+        motivo: 'lead_qualificado',
+        resumo: `={{ ${GRAVADO}.first().json.resumo || ${GRAVADO}.first().json.problema || 'Lead com contacto registado pelo chatbot (sem resumo).' }}`,
+      }),
+      mode: 'once',
+      options: { waitForSubWorkflow: false },
+    }, [3740, 200], { onError: 'continueRegularOutput' });
+
     // --- Resposta ao agente (curta; nunca menciona erros do Notion) -------
     const resposta = w.no('[OUTPUT] Resposta ao agente', 'n8n-nodes-base.code', 2, {
       jsCode: `
@@ -181,20 +204,20 @@ if (v.avisos.includes('telefone_invalido')) partes.push('O telefone indicado nã
 if (estado === 'sem_contacto') partes.push('Ainda não há email nem telefone válidos: sem um deles, a equipa não consegue responder.');
 return [{ json: { resposta: partes.join(' ') } }];
 `,
-    }, [3740, 0]);
+    }, [3960, 0]);
 
     w.liga(entrada, validar);
     w.liga(validar, sessaoOk);
     w.liga(sessaoOk, gravar, 0);
-    w.liga(sessaoOk, resposta, 1);
+    w.liga(sessaoOk, comContacto, 1);
     w.liga(gravar, temContacto);
     w.liga(temContacto, reservarUm, 0);
-    w.liga(temContacto, resposta, 1);
+    w.liga(temContacto, comContacto, 1);
     w.liga(reservarUm, haLead);
     w.liga(agenda, reservarVarios);
     w.liga(reservarVarios, haLead);
     w.liga(haLead, preparar, 0);
-    w.liga(haLead, resposta, 1);
+    w.liga(haLead, comContacto, 1);
     w.liga(preparar, procurarCrm0);
     w.liga(procurarCrm0, procurarCrm1);
     w.liga(procurarCrm1, procurarChatbot);
@@ -204,8 +227,11 @@ return [{ json: { resposta: partes.join(' ') } }];
     w.liga(resultado, concluir);
     w.liga(concluir, desistiu);
     w.liga(desistiu, erroSync, 0);
-    w.liga(desistiu, resposta, 1);
-    w.liga(erroSync, resposta);
+    w.liga(desistiu, comContacto, 1);
+    w.liga(erroSync, comContacto);
+    w.liga(comContacto, avisar, 0);
+    w.liga(comContacto, resposta, 1);
+    w.liga(avisar, resposta);
 
     return w.json();
   },

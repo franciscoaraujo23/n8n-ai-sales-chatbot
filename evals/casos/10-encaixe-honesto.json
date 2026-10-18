@@ -8,7 +8,7 @@
       "esperado": {
         "guarda": null,
         "deve_conter": [
-          "/(n[ãa]o compens[ae]|n[ãa]o compensar|pode n[ãa]o compensar|volume (é|e|parece|parece ser) (bastante |muito |demasiado )?baixo|custo (pode ser|seria) maior|n[ãa]o vale|n[ãa]o faz sentido|custa mais|provavelmente n[ãa]o|talvez n[ãa]o)/i"
+          "/(n[ãa]o compens[ae]|n[ãa]o compensar|pode n[ãa]o compensar|volume (é|e|parece|parece ser) (bastante |muito |demasiado )?baixo|custo (pode ser|seria) maior|custaria mais|n[ãa]o (lhe )?recomend|n[ãa]o vale|n[ãa]o faz sentido|custa mais|provavelmente n[ãa]o|talvez n[ãa]o)/i"
         ],
         "nao_deve_conter": [
           "/perfeito para (si|vocês)/i",

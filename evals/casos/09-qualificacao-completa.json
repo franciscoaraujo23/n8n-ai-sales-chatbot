@@ -2,7 +2,7 @@
   "id": "qualificacao-completa",
   "categoria": "qualificacao",
   "descricao": "Fluxo completo: dor, perguntas sobre o negócio uma de cada vez, ligação a um serviço, chamada à ação, recolha de nome e email, registo do lead e aviso à equipa.",
-  "efeitos": "Cria um lead de teste (email em exemplo.pt) no Postgres, uma página no Notion e, pelo aviso automático do tool-registar-lead, uma mensagem no canal de leads do Discord (opção B: limpar à mão).",
+  "efeitos": "Cria um lead de teste (email em exemplo.pt) no Postgres, com sync_estado \"teste\": não vai para o Notion e o aviso automático fica marcado como teste, sem mensagem no Discord.",
   "turnos": [
     {
       "texto": "Olá. Tenho uma clínica de estética em Braga e perdemos imenso tempo a confirmar marcações por telefone.",

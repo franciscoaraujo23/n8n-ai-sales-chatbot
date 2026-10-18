@@ -164,12 +164,20 @@ node scripts/build.js --enviar chat-core       # só um
 Tudo em `src/config.js`. Depois: `npm test`, enviar os workflows afetados
 (`chat-core` para modelo e guardas de conteúdo; `guard-trafego` para rate
 limit e teto global) e correr os evals. Ao mudar de modelo, atualizar também
-os preços em `config.modelo`, que servem para estimar o custo.
+os preços em `config.modelo`, que servem para estimar o custo. Nem todos os
+modelos funcionam com o agente do n8n: se a bateria tiver respostas de
+fallback, o modelo falha dentro do agente (ver `agente_falhou` em `errors`) e
+não serve, por melhor que seja fora do n8n.
 
 ## Alertas no Discord (#erros)
 
 Um alerta por workflow em cada 5 minutos; os erros entretanto ficam todos na
 tabela `errors`. Detalhe: `SELECT * FROM errors WHERE id = <id>;`
+
+Os alertas saem pela credencial `Discord chatbot erros` e os avisos de leads
+pela `Discord chatbot leads`. Se um alerta de erro aparecer no canal de leads
+(ou o contrário), o URL do webhook está trocado na credencial: corrigir no
+n8n, não nos workflows.
 
 | Tipo | O que quer dizer | O que fazer |
 |---|---|---|

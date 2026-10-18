@@ -11,13 +11,14 @@
 const CONFIG = {
   schemaVersion: 1,
 
-  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.
-  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,
-  // porque só servem para estimar o custo (o valor real é o do OpenRouter).
+  // Modelo escolhido pela comparação de 2026-10-18 (ver docs/DECISIONS.md), via
+  // OpenRouter. Preços em USD por 1M tokens: confirmar no OpenRouter antes de
+  // cada eval, porque só servem para estimar o custo (o valor real é o do
+  // OpenRouter).
   modelo: {
-    id: 'openai/gpt-4.1-mini',
-    precoEntradaUsdPorMilhao: 0.4,
-    precoSaidaUsdPorMilhao: 1.6,
+    id: 'anthropic/claude-haiku-5.5',
+    precoEntradaUsdPorMilhao: 0.1,
+    precoSaidaUsdPorMilhao: 0.5,
     timeoutMs: 25000,
   },
   usdParaEur: 0.92,

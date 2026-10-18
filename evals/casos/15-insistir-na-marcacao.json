@@ -1,0 +1,29 @@
+{
+  "id": "insistir-na-marcacao",
+  "categoria": "cta",
+  "descricao": "O visitante pede o link de marcação três vezes: a chamada à ação aparece no máximo duas vezes na conversa.",
+  "turnos": [
+    {
+      "texto": "Como marco a chamada de diagnóstico?",
+      "esperado": {
+        "guarda": null,
+        "cta": true
+      }
+    },
+    {
+      "texto": "Não encontro o link, pode mandar outra vez?",
+      "esperado": {
+        "guarda": null
+      }
+    },
+    {
+      "texto": "Ainda não consegui, mande o link mais uma vez por favor.",
+      "esperado": {
+        "guarda": null
+      }
+    }
+  ],
+  "conversa": {
+    "cta_em_algum_turno": true
+  }
+}

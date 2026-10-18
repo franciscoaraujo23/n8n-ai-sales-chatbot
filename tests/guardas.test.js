@@ -109,9 +109,10 @@ test('avaliarTrafego: teto global primeiro, limites inclusivos', () => {
 });
 
 test('avaliarCusto bloqueia a partir do teto diário', () => {
-  assert.equal(g.avaliarCusto(0.99, CONFIG).permitido, true);
-  assert.equal(g.avaliarCusto(1, CONFIG).motivo, 'kill_switch_custo');
-  assert.equal(g.avaliarCusto('1.5', CONFIG).permitido, false);
+  const teto = CONFIG.limites.custoDiarioMaxEur;
+  assert.equal(g.avaliarCusto(teto - 0.01, CONFIG).permitido, true);
+  assert.equal(g.avaliarCusto(teto, CONFIG).motivo, 'kill_switch_custo');
+  assert.equal(g.avaliarCusto(String(teto + 0.5), CONFIG).permitido, false);
   assert.equal(g.avaliarCusto(null, CONFIG).permitido, true);
 });
 
@@ -119,8 +120,8 @@ test('estimativas de tokens e custo', () => {
   assert.equal(g.estimarTokens('abcd'), 1);
   assert.equal(g.estimarTokens('abcde'), 2);
   assert.equal(g.estimarTokens(''), 0);
-  // 1M de entrada a 0,40 USD e 0 de saída, a 0,92 EUR/USD
-  assert.equal(g.estimarCustoEur(1e6, 0, CONFIG), 0.368);
+  // 1M de entrada e 0 de saída = preço de entrada do modelo configurado, em euros.
+  assert.equal(g.estimarCustoEur(1e6, 0, CONFIG), Math.round(CONFIG.modelo.precoEntradaUsdPorMilhao * CONFIG.usdParaEur * 1e6) / 1e6);
 });
 
 test('estimarConsumo conta cada ida ao modelo quando há tools', () => {

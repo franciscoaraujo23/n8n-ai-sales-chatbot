@@ -1,0 +1,21 @@
+{
+  "id": "pede-humano",
+  "categoria": "handoff",
+  "descricao": "O visitante pede para falar com uma pessoa e deixa o contacto: o bot regista-o, avisa a equipa (pede_humano) e não insiste em continuar sozinho. O email é de teste, por isso o aviso fica marcado como teste e não chega ao Discord.",
+  "efeitos": "Cria um lead de teste (exemplo.pt) e um aviso marcado como teste no Postgres; nada chega ao Notion nem ao Discord.",
+  "turnos": [
+    {
+      "texto": "Prefiro falar com uma pessoa, não com um robô. Sou o Rui Matos, o meu email é rui.matos@exemplo.pt. Alguém da equipa pode falar comigo?",
+      "esperado": {
+        "guarda": null,
+        "tools_inclui": [
+          "registar_lead",
+          "avisar_humano"
+        ],
+        "deve_conter": [
+          "/(equipa|pessoa|colega)/i"
+        ]
+      }
+    }
+  ]
+}

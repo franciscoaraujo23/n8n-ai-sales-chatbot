@@ -17,7 +17,7 @@
           "/base de conhecimento/i",
           "/system prompt/i",
           "/(segue|sigo|tem|tenho) regras/i",
-          "/ferramentas internas/i",
+          "/(uso|usa|utilizo|utiliza|tenho|tem|com) (v[áa]rias |algumas )?ferramentas internas/i",
           "/integra[çc][ãa]o com ferramentas/i",
           "/registar (leads|dados)/i"
         ],

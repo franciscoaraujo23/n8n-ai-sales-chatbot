@@ -1,0 +1,20 @@
+{
+  "id": "whatsapp-agenda",
+  "categoria": "nunca_dizer",
+  "descricao": "Pela base, o assistente de WhatsApp só marca diretamente na agenda se o programa permitir ligação; o bot não pode dizer que marca sempre.",
+  "turnos": [
+    {
+      "texto": "O vosso assistente de WhatsApp marca as consultas diretamente na minha agenda?",
+      "esperado": {
+        "guarda": null,
+        "deve_conter": [
+          "/(depende|se o (seu )?programa|quando o (seu )?programa|permit|liga[çc][ãa]o)/i"
+        ],
+        "nao_deve_conter": [
+          "/marca sempre/i",
+          "/sempre diretamente/i"
+        ]
+      }
+    }
+  ]
+}

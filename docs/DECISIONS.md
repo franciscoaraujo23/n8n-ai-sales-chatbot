@@ -63,8 +63,8 @@ versão em produção (2.29.10), não na documentação.
 - **Objeções respondidas como na base**, sem sublinhar o que a empresa ainda
   não tem. Com o `gpt-4.1-mini`, o caso "quem-somos" continua a falhar (o bot
   diz que não tem clientes antes de reduzir o risco); três formulações do
-  prompt não resolveram, e a pela negativa piorou. Fica como critério da
-  escolha do modelo.
+  prompt não resolveram, e a pela negativa piorou. Ficou como critério da
+  escolha do modelo; com o Haiku já não acontece (ver "Modelo e custos").
 - **O `session_id` das tools vem do contexto, nunca do LLM**: o modelo não
   pode registar dados noutra conversa.
 - **Sem base de conhecimento ativa, o agente não é chamado** (motivo
@@ -80,6 +80,31 @@ versão em produção (2.29.10), não na documentação.
 
 - **Modelo configurável num único sítio** (`src/config.js`). Provisório e
   barato até ao eval; a escolha final é um critério do eval, não um palpite.
+- **`anthropic/claude-haiku-5.5`** (2026-10-18). Cinco candidatos baratos com
+  suporte de tools no OpenRouter, a mesma bateria (12 casos × 5 corridas)
+  através do `chat-eval`, ou seja, com o agente do n8n tal como está em
+  produção, e todas reavaliadas com as mesmas verificações:
+
+  | Modelo | USD/1M entrada / saída | Corridas certas | Fallbacks | Latência p50 / p90 |
+  |---|---|---|---|---|
+  | `claude-haiku-5.5` | 0,10 / 0,50 | 58/60 | 0 | 3,5 s / 4,4 s |
+  | `gemini-3.1-flash-lite` | 0,25 / 1,50 | 58/60 | 0 | 1,5 s / 2,1 s |
+  | `gpt-4.1-mini` (provisório) | 0,40 / 1,60 | 55/60 | 0 | 1,6 s / 2,4 s |
+  | `gpt-5.6-luna` | 0,20 / 1,20 | 41/60 | 19 de 85 | — |
+  | `mistral-small-2603` | 0,15 / 0,60 | 5/60 | 72 de 85 | — |
+
+  O empate entre o Haiku e o Gemini decide-se pelo tipo de falha. O Gemini
+  disse "já tomei nota" e "já adicionei o seu email" sem chamar
+  `registar_lead`, e numa das 5 conversas o lead perdeu-se: é a pior falha
+  possível num bot cujo objetivo é o lead chegar à equipa. O Haiku registou o
+  lead nas 5 conversas, e as suas 2 falhas são no "quem-somos" por não
+  mencionar a redução de risco (nunca diz que não há clientes, que era a falha
+  do `gpt-4.1-mini`). É também o mais barato. O custo é a latência, cerca de
+  2 s a mais, aceitável num chat com indicador de escrita. O Luna e o Mistral
+  falham dentro do agente do n8n (resposta de fallback), por isso não foram
+  avaliados quanto à qualidade; o DeepSeek ficou de fora por guardar os dados
+  na China. Sem cache de prompt (ver abaixo), o Haiku continua o mais barato.
+  Revisitar se a latência pesar na conversão ou se o preço mudar.
 - **Cache de prompt como critério de escolha do modelo.** A mensagem de
   sistema é prompt + base (fixos) + estado da conversa (no fim): o prefixo
   estável aproveita a cache automática dos fornecedores que a têm. Os modelos
@@ -110,6 +135,13 @@ versão em produção (2.29.10), não na documentação.
   mesmo tempo (o que criaria duas páginas). Se os dados mudam durante a
   sincronização, o lead volta a pendente em vez de as alterações se perderem.
   Backoff de 5 min, 30 min, 2 h e 12 h; à quinta falha, "falhado" e alerta.
+- **As novas tentativas de sincronização ficam no `tool-registar-lead`**, como
+  segundo trigger (Schedule de 5 min), e não num workflow próprio
+  (2026-10-18). A cadeia de sincronização é uma só para a tool e para as novas
+  tentativas, e a reserva com prazo no Postgres já impede que as duas tratem o
+  mesmo lead. Separar obrigava a duplicar a cadeia ou a criar um terceiro
+  sub-workflow, sem tirar risco. Revisitar se for preciso desligar as novas
+  tentativas sem tocar na tool, ou se aparecer outra origem de leads.
 - **`atualizado_em` só muda com os dados do lead**, não com tentativas de
   sincronização: é a data do último contacto que conta para a retenção.
 - **Sem gravação de execuções bem-sucedidas** em nenhum workflow do chatbot:

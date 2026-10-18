@@ -88,4 +88,4 @@ Alterações ao schema: nova migration numerada em `sql/`, testada em
 | Testes | 90 unitários + 17 SQL |
 | Evals | 10 casos iniciais |
 | Base de conhecimento | ficheiro Markdown no Google Drive, lido por uma conta de serviço |
-| Modelo | provisório (barato, via OpenRouter); a escolha final sai do eval |
+| Modelo | `anthropic/claude-haiku-5.5` via OpenRouter, escolhido por comparação de 5 modelos no eval (ver DECISIONS) |

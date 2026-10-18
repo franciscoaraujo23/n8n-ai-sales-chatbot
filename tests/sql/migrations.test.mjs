@@ -317,3 +317,18 @@ test('leads com email de teste ficam em "teste" e nunca são reservados para sin
   const semLista = await registar(db, { session_id: 'terceira', email: 'x@exemplo.pt' });
   assert.equal(semLista.sync_estado, 'pendente', 'sem lista, nenhum domínio é de teste');
 });
+
+// --- 005: avisos de conversas de teste ------------------------------------------
+
+test('registar_handoff: conversa com lead de teste regista mas não envia', async () => {
+  const db = await baseNova();
+  await registar(db, { session_id: SESSAO, email: 'ana@exemplo.pt', dominios_teste: ['exemplo.pt'] });
+  let r = await um(db, 'SELECT * FROM registar_handoff($1, $2, $3)', [SESSAO, 'pede_humano', 'r']);
+  assert.deepEqual([r.enviar, r.teste], [false, true]);
+  assert.equal((await um(db, `SELECT discord_estado FROM handoffs WHERE session_id = $1`, [SESSAO])).discord_estado, 'teste');
+  r = await um(db, 'SELECT * FROM registar_handoff($1, $2, $3)', [SESSAO, 'pede_humano', 'r']);
+  assert.deepEqual([r.enviar, r.teste], [false, true]);
+
+  const real = await um(db, 'SELECT * FROM registar_handoff($1, $2, $3)', ['sem-lead', 'pede_humano', 'r']);
+  assert.deepEqual([real.enviar, real.teste], [true, false]);
+});

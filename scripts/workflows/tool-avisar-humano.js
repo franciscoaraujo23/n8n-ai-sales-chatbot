@@ -41,7 +41,7 @@ return [{
     const sessaoOk = w.no('[GUARD] Sessão válida?', 'n8n-nodes-base.if', 2.2, L.paramsSe('$json.valido'), [440, 0]);
 
     const registar = w.no('[TOOL] Registar aviso', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
-SELECT h.handoff_id, h.enviar,
+SELECT h.handoff_id, h.enviar, h.teste,
        l.nome, l.empresa, l.setor, l.email, l.telefone, l.problema, l.notion_page_id,
        coalesce(l.crm_existente, false) AS crm_existente,
        coalesce(l.crm_paginas, '[]'::jsonb) AS crm_paginas
@@ -90,7 +90,10 @@ RETURNING handoffs.id, handoffs.discord_estado
       jsCode: `
 const v = $('[GUARD] Validar pedido').first().json;
 if (!v.valido) return [{ json: { resposta: 'Não foi possível registar o pedido desta conversa.' } }];
-const enviar = $('[TOOL] Registar aviso').first().json.enviar;
+const r = $('[TOOL] Registar aviso').first().json;
+// Conversa de teste: o aviso fica registado mas não vai para o Discord; para o
+// agente (e para os evals) a resposta é a mesma de um aviso enviado.
+const enviar = r.enviar || r.teste;
 return [{
   json: {
     resposta: enviar

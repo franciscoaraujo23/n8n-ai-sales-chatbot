@@ -66,7 +66,7 @@ test('tool-avisar-humano: registar aviso devolve dados do lead e idempotência',
   const sql = query('tool-avisar-humano.json', '[TOOL] Registar aviso');
   const p = { session_id: SESSAO, motivo: 'lead_qualificado', resumo: 'r' };
   let [r] = await correr(db, sql, p);
-  assert.deepEqual([r.enviar, r.nome, r.email, r.crm_existente], [true, 'Ana', 'ana@x.pt', false]);
+  assert.deepEqual([r.enviar, r.teste, r.nome, r.email, r.crm_existente], [true, false, 'Ana', 'ana@x.pt', false]);
   assert.deepEqual(r.crm_paginas, []);
   [r] = await correr(db, sql, p);
   assert.equal(r.enviar, false);

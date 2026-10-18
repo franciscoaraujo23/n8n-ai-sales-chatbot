@@ -82,13 +82,20 @@ return [{
     }, [880, 0]);
 
     const registar = w.no('[LOGGING] Registar versão', 'n8n-nodes-base.postgres', 2.6, L.paramsSql(`
-SELECT k.kb_id, k.nova, k.ativada, v.hash, v.titulos_ok, v.alertado, v.erros
+-- A linha que registar_kb insere NÃO é visível nesta mesma instrução (o
+-- snapshot é anterior), por isso os dados vêm do parâmetro e só o
+-- "alertado" de uma versão que já existia vem da tabela (LEFT JOIN).
+SELECT k.kb_id, k.nova, k.ativada,
+       p->>'hash' AS hash,
+       (p->>'valido')::boolean AS titulos_ok,
+       coalesce(v.alertado, false) AS alertado,
+       ARRAY(SELECT jsonb_array_elements_text(p->'erros')) AS erros
 FROM (SELECT $1::jsonb AS p) AS x
 CROSS JOIN LATERAL registar_kb(
   p->>'hash', p->>'texto', p->>'origem', (p->>'valido')::boolean,
   ARRAY(SELECT jsonb_array_elements_text(p->'erros'))
 ) AS k
-JOIN kb_versions v ON v.id = k.kb_id
+LEFT JOIN kb_versions v ON v.id = k.kb_id
 `, 'JSON.stringify({ hash: $json.hash, texto: $json.texto, origem: $json.origem, valido: $json.valido, erros: $json.erros })'),
     [1100, 0], { credentials: L.CRED_PG });
 

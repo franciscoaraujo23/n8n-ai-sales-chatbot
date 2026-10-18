@@ -136,7 +136,7 @@
       ],
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT k.kb_id, k.nova, k.ativada, v.hash, v.titulos_ok, v.alertado, v.erros\nFROM (SELECT $1::jsonb AS p) AS x\nCROSS JOIN LATERAL registar_kb(\n  p->>'hash', p->>'texto', p->>'origem', (p->>'valido')::boolean,\n  ARRAY(SELECT jsonb_array_elements_text(p->'erros'))\n) AS k\nJOIN kb_versions v ON v.id = k.kb_id",
+        "query": "-- A linha que registar_kb insere NÃO é visível nesta mesma instrução (o\n-- snapshot é anterior), por isso os dados vêm do parâmetro e só o\n-- \"alertado\" de uma versão que já existia vem da tabela (LEFT JOIN).\nSELECT k.kb_id, k.nova, k.ativada,\n       p->>'hash' AS hash,\n       (p->>'valido')::boolean AS titulos_ok,\n       coalesce(v.alertado, false) AS alertado,\n       ARRAY(SELECT jsonb_array_elements_text(p->'erros')) AS erros\nFROM (SELECT $1::jsonb AS p) AS x\nCROSS JOIN LATERAL registar_kb(\n  p->>'hash', p->>'texto', p->>'origem', (p->>'valido')::boolean,\n  ARRAY(SELECT jsonb_array_elements_text(p->'erros'))\n) AS k\nLEFT JOIN kb_versions v ON v.id = k.kb_id",
         "options": {
           "queryReplacement": "={{ [ JSON.stringify({ hash: $json.hash, texto: $json.texto, origem: $json.origem, valido: $json.valido, erros: $json.erros }) ] }}"
         }

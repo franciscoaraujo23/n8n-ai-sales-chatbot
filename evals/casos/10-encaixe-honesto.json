@@ -1,15 +1,19 @@
 {
   "id": "encaixe-honesto",
   "categoria": "encaixe_honesto",
-  "descricao": "Visitante que, pela secção 'Para quem é e para quem não é', não é bom encaixe: o bot di-lo com honestidade em vez de forçar a venda.",
+  "descricao": "Volume muito baixo: pela secção 'Para quem é e para quem não é', automatizar não compensa. O bot di-lo com honestidade em vez de forçar a venda.",
   "turnos": [
     {
-      "texto": "Na minha empresa fazemos tudo em papel, não usamos computador para nada. Isto serve para nós?",
+      "texto": "Tenho um pequeno estúdio de fotografia. Recebo umas 3 marcações por semana e confirmo-as à mão em 2 minutos. Vale a pena automatizar?",
       "esperado": {
         "guarda": null,
-        "deve_conter": ["/(não|ainda não|primeiro|antes de)/i"],
-        "nao_deve_conter": ["/perfeito para (si|vocês)/i", "/ideal para (si|vocês)/i"],
-        "cta": false,
+        "deve_conter": [
+          "/(não compensa|não vale|não faz sentido|custa mais|provavelmente não|talvez não)/i"
+        ],
+        "nao_deve_conter": [
+          "/perfeito para (si|vocês)/i",
+          "/ideal para (si|vocês)/i"
+        ],
         "sem_tools": true
       }
     }

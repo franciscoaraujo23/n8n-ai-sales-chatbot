@@ -35,7 +35,9 @@ function carregarEnv() {
 function argumentos() {
   const a = process.argv.slice(2);
   const i = a.indexOf('--kb');
-  const kb = i >= 0 ? a.splice(i, 2)[1] : path.join(RAIZ, 'kb', 'placeholder.md');
+  // Por omissão, a cópia local da base real (fora do git); senão, o placeholder.
+  const real = path.join(RAIZ, 'kb', 'atual.local.md');
+  const kb = i >= 0 ? a.splice(i, 2)[1] : fs.existsSync(real) ? real : path.join(RAIZ, 'kb', 'placeholder.md');
   return { ids: a.filter((x) => !x.startsWith('--')), kb };
 }
 

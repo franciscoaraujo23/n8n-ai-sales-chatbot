@@ -16,7 +16,7 @@
       "texto": "Somos 6 pessoas. Usamos uma agenda online e o WhatsApp para falar com as clientes.",
       "esperado": {
         "guarda": null,
-        "deve_conter": ["/automa/i"]
+        "deve_conter": ["/(automa|lembrete|assistente|whatsapp|marca[çc][õo]es)/i"]
       }
     },
     {

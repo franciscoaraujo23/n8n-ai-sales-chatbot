@@ -141,9 +141,11 @@ test('avisar-humano: resposta ao agente distingue aviso novo de repetido', () =>
 
 const KB = wf('kb-sync.json');
 
-test('kb-sync: sem ID do Google Doc, falha com mensagem clara', () => {
-  if (CONFIG.kb.googleDocId) return;
-  assert.throws(() => correr(KB, '[NORMALIZE] Configuração'), /CONFIG\.kb\.googleDocId/);
+test('kb-sync: lê o ID do ficheiro da configuração', () => {
+  const [c] = correr(KB, '[NORMALIZE] Configuração');
+  assert.equal(c.docId, CONFIG.kb.driveFileId);
+  const url = KB.nodes.find((n) => n.name === '[NORMALIZE] Descarregar base').parameters.url;
+  assert.ok(url.includes("'/export?mimeType=text%2Fmarkdown'") && url.includes("'?alt=media&supportsAllDrives=true'"));
 });
 
 test('kb-sync: o placeholder passa o contrato no nó real', () => {

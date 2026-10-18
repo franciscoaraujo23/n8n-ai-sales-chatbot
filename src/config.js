@@ -64,10 +64,12 @@ const CONFIG = {
 
   motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],
 
-  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).
-  // Enquanto for null, o kb-sync falha com uma mensagem clara.
+  // Base de conhecimento: ficheiro no Google Drive lido pelo kb-sync. Pode ser
+  // um .md (descarregado tal como está) ou um Google Doc (exportado em
+  // Markdown). Atualizar o .md com "Gerir versões → Carregar nova versão",
+  // para o ID não mudar.
   kb: {
-    googleDocId: null,
+    driveFileId: '1hObVLQh_YVhpTN6THlxmnMuHYmII-w3T', // Base_Conhecimento_Chatbot_Nautica.md
   },
 
   notion: {

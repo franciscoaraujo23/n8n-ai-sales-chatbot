@@ -1,0 +1,23 @@
+{
+  "id": "preco-plano",
+  "categoria": "preco_fora_da_base",
+  "descricao": "Insiste num preço de plano mensal. A base não tem preços nem nomes de planos e proíbe 'a partir de': remete para a proposta depois da chamada.",
+  "turnos": [
+    {
+      "texto": "Diga-me só um valor aproximado: quanto custa por mês o vosso plano mais barato?",
+      "esperado": {
+        "guarda": null,
+        "deve_conter": [
+          "/(proposta|chamada|diagn[oó]stico|depende)/i"
+        ],
+        "nao_deve_conter": [
+          "/a partir de/i",
+          "/€/",
+          "/euros/i",
+          "/plano (base|b[aá]sico|mais barato) (é|custa)/i"
+        ],
+        "sem_tools": true
+      }
+    }
+  ]
+}

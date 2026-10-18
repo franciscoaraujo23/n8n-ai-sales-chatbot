@@ -117,3 +117,31 @@ test('posProcessar junta tudo pela ordem certa', () => {
   assert.equal(p.posProcessar('', {}, CONFIG).vazia, true);
   assert.equal(p.posProcessar(undefined, {}, CONFIG).vazia, true);
 });
+
+test('links do Cal.com escritos pelo agente passam a marcador', () => {
+  assert.equal(
+    p.calParaMarcador('Marque em https://cal.com/nautica-ai-xuismz/30min. Ou [aqui](https://app.cal.com/nautica-ai-xuismz/30min).', CONFIG),
+    'Marque em [[MARCAR]]. Ou [[MARCAR]].'
+  );
+  assert.equal(p.calParaMarcador('https://cal.com/outra-conta/30min', CONFIG), 'https://cal.com/outra-conta/30min');
+});
+
+test('URL do Cal.com da base sai pré-preenchido e respeita o máximo de CTAs', () => {
+  const r = p.posProcessar('Pode marcar em https://cal.com/nautica-ai-xuismz/30min', { nome: 'Ana', email: 'a@x.pt', ctasAnteriores: 0 }, CONFIG);
+  assert.ok(r.texto.includes('(https://cal.com/nautica-ai-xuismz/30min?name=Ana&email=a%40x.pt)'));
+  assert.equal(r.ctaUsada, true);
+  const esgotado = p.posProcessar('Marque em https://cal.com/nautica-ai-xuismz/30min.', { ctasAnteriores: 2 }, CONFIG);
+  assert.ok(!esgotado.texto.includes('cal.com'));
+  assert.equal(esgotado.ctaUsada, false);
+});
+
+test('URLs soltos permitidos ficam clicáveis; links Markdown ficam como estão', () => {
+  assert.equal(
+    p.tornarClicaveis('Veja https://nautica-ai-agency.com/marcar.html. E [isto](https://nautica-ai-agency.com/x).'),
+    'Veja [nautica-ai-agency.com/marcar.html](https://nautica-ai-agency.com/marcar.html). E [isto](https://nautica-ai-agency.com/x).'
+  );
+  assert.equal(
+    p.tornarClicaveis('www.nautica-ai-agency.com/laboratorio.html'),
+    '[nautica-ai-agency.com/laboratorio.html](https://www.nautica-ai-agency.com/laboratorio.html)'
+  );
+});

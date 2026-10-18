@@ -1,8 +1,9 @@
 /**
  * Pós-processamento da resposta do agente, antes de chegar ao visitante.
  *
- * Ordem: links fora da allowlist → corte por tamanho → chamada à ação
- * (marcador trocado pelo link do Cal.com) → deteção de português do Brasil.
+ * Ordem: links fora da allowlist → links do Cal.com passam a marcador →
+ * corte por tamanho → chamada à ação (marcador trocado pelo link do
+ * Cal.com) → URLs soltos passam a clicáveis → deteção de português do Brasil.
  * O corte vem antes do link do Cal.com para o URL não contar para o
  * tamanho visível nem ser cortado a meio.
  *
@@ -132,6 +133,42 @@ function aplicarCta(texto, ctx, cfg) {
   return { texto: t, ctaUsada: usada };
 }
 
+/**
+ * Links do Cal.com escritos pelo agente (a base tem o URL por extenso)
+ * passam a marcador: assim levam nome e email pré-preenchidos, contam para
+ * o máximo de chamadas à ação e são removidos se esse máximo já foi usado.
+ */
+function calParaMarcador(texto, cfg) {
+  const conta = new URL(cfg.cal.url).pathname.split('/')[1].replace(/[^a-z0-9-]/gi, '');
+  const url = 'https?://(?:app\\.)?cal\\.com/' + conta + '(?:/[^\\s)\\]]*)?';
+  return String(texto)
+    .replace(new RegExp('\\[[^\\]\\n]*\\]\\(\\s*<?' + url + '>?\\s*\\)', 'g'), cfg.marcadorCta)
+    .replace(new RegExp('(?<![\\w/])' + url, 'g'), (m) => {
+      const final = (m.match(/[.,;:!?'"»]+$/) || [''])[0];
+      return cfg.marcadorCta + final;
+    });
+}
+
+/**
+ * URLs soltos (já filtrados pela allowlist) passam a links Markdown: o
+ * widget não torna URLs soltos clicáveis.
+ */
+function tornarClicaveis(texto) {
+  const guardados = [];
+  let t = String(texto).replace(/\[[^\]\n]*\]\([^)\s]+\)/g, (m) => {
+    guardados.push(m);
+    return '\u0000' + (guardados.length - 1) + '\u0000';
+  });
+  t = t.replace(/\b(?:https:\/\/|www\.)[^\s<>()[\]\u0000]+/gi, (m) => {
+    const final = (m.match(/[.,;:!?'"»]+$/) || [''])[0];
+    const url = m.slice(0, m.length - final.length);
+    const href = /^www\./i.test(url) ? 'https://' + url : url;
+    const rotulo = href.replace(/^https:\/\/(www\.)?/i, '').replace(/\/$/, '');
+    return '[' + rotulo + '](' + href + ')' + final;
+  });
+  return t.replace(/\u0000(\d+)\u0000/g, (m, i) => guardados[Number(i)]);
+}
+
 const MARCADORES_PT_BR = [
   { id: 'gerundio', re: /\b(estou|esta|estamos|estao|estava|estavamos|fico|ficamos|continuo|continua|seguimos|vou ficar)\s+\w+(ando|endo|indo)\b/ },
   { id: 'voce', re: /\bvoce\b/ },
@@ -152,12 +189,14 @@ function detetarPtBr(texto) {
  */
 function posProcessar(texto, ctx, cfg) {
   const links = filtrarLinks(texto || '', cfg);
-  const corte = cortarResposta(links.texto, cfg.limites.respostaMaxChars);
+  const comMarcador = calParaMarcador(links.texto, cfg);
+  const corte = cortarResposta(comMarcador, cfg.limites.respostaMaxChars);
   const cta = aplicarCta(corte.texto, ctx, cfg);
-  const ptBr = detetarPtBr(cta.texto);
+  const final = tornarClicaveis(cta.texto);
+  const ptBr = detetarPtBr(final);
   return {
-    texto: cta.texto,
-    vazia: !cta.texto,
+    texto: final,
+    vazia: !final,
     linksRemovidos: links.removidos,
     cortada: corte.cortada,
     ctaUsada: cta.ctaUsada,
@@ -173,6 +212,8 @@ module.exports = {
   cortarResposta,
   urlCal,
   aplicarCta,
+  calParaMarcador,
+  tornarClicaveis,
   detetarPtBr,
   posProcessar,
 };

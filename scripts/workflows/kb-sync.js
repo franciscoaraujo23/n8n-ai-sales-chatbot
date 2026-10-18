@@ -1,6 +1,6 @@
 /**
- * kb-sync — de 15 em 15 minutos, lê o Google Doc da base de conhecimento
- * (exportado em Markdown, para manter os "##"), valida o contrato de
+ * kb-sync — de 15 em 15 minutos, lê do Google Drive a base de conhecimento
+ * (um .md, ou um Google Doc exportado em Markdown), valida o contrato de
  * títulos e regista a versão. Só versões válidas ficam ativas; uma versão
  * inválida gera um alerta (uma vez por versão) e o bot continua com a
  * anterior.
@@ -22,25 +22,40 @@ module.exports = {
 
     const config = w.no('[NORMALIZE] Configuração', 'n8n-nodes-base.code', 2, {
       jsCode: L.codigo(['config'], `
-if (!CONFIG.kb.googleDocId) {
-  throw new Error('Falta o ID do Google Doc da base de conhecimento (CONFIG.kb.googleDocId em src/config.js).');
+if (!CONFIG.kb.driveFileId) {
+  throw new Error('Falta o ID do ficheiro da base de conhecimento (CONFIG.kb.driveFileId em src/config.js).');
 }
-return [{ json: { docId: CONFIG.kb.googleDocId } }];
+return [{ json: { docId: CONFIG.kb.driveFileId } }];
 `),
     }, [220, 0]);
 
-    const exportar = w.no('[NORMALIZE] Exportar Google Doc', 'n8n-nodes-base.httpRequest', 4.2, {
+    const driveExtra = {
+      credentials: L.credencial('googleDriveOAuth2Api', 'Google Drive kb'),
+      retryOnFail: true,
+      maxTries: 3,
+      waitBetweenTries: 5000,
+    };
+
+    // supportsAllDrives: o ficheiro pode estar num Drive partilhado.
+    const metadados = w.no('[NORMALIZE] Metadados do ficheiro', 'n8n-nodes-base.httpRequest', 4.2, {
       method: 'GET',
-      url: '=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}/export',
+      url: '=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}?fields=id,name,mimeType&supportsAllDrives=true',
       authentication: 'predefinedCredentialType',
       nodeCredentialType: 'googleDriveOAuth2Api',
-      sendQuery: true,
-      queryParameters: { parameters: [{ name: 'mimeType', value: 'text/markdown' }] },
+      options: { timeout: 20000 },
+    }, [330, 0], driveExtra);
+
+    // Google Doc → exportar em Markdown; qualquer outro ficheiro (.md) → conteúdo tal como está.
+    const exportar = w.no('[NORMALIZE] Descarregar base', 'n8n-nodes-base.httpRequest', 4.2, {
+      method: 'GET',
+      url: "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.id + ($json.mimeType === 'application/vnd.google-apps.document' ? '/export?mimeType=text%2Fmarkdown' : '?alt=media&supportsAllDrives=true') }}",
+      authentication: 'predefinedCredentialType',
+      nodeCredentialType: 'googleDriveOAuth2Api',
       options: {
         timeout: 20000,
         response: { response: { responseFormat: 'text', outputPropertyName: 'markdown' } },
       },
-    }, [440, 0], {
+    }, [550, 0], {
       credentials: L.credencial('googleDriveOAuth2Api', 'Google Drive kb'),
       retryOnFail: true,
       maxTries: 3,
@@ -103,7 +118,8 @@ RETURNING kb_versions.id
     [1980, -100], { credentials: L.CRED_PG });
 
     w.liga(agenda, config);
-    w.liga(config, exportar);
+    w.liga(config, metadados);
+    w.liga(metadados, exportar);
     w.liga(exportar, validar);
     w.liga(validar, hash);
     w.liga(hash, registar);

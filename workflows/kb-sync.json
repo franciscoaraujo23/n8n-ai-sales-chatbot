@@ -31,32 +31,51 @@
         0
       ],
       "parameters": {
-        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: Google Doc lido pelo kb-sync (exportado em Markdown).\n  // Enquanto for null, o kb-sync falha com uma mensagem clara.\n  kb: {\n    googleDocId: null,\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== código deste nó =====\nif (!CONFIG.kb.googleDocId) {\n  throw new Error('Falta o ID do Google Doc da base de conhecimento (CONFIG.kb.googleDocId em src/config.js).');\n}\nreturn [{ json: { docId: CONFIG.kb.googleDocId } }];"
+        "jsCode": "// Gerado por scripts/build.js. Não editar no n8n: editar /src e /scripts e voltar a enviar.\n\n// ===== src/config.js =====\n/**\n * Configuração central do chatbot.\n *\n * É o único sítio onde se mudam limites, modelo, links e textos de\n * contacto. O scripts/build.js copia este ficheiro para os Code nodes\n * que precisam dele; nos workflows nunca se editam estes valores à mão.\n *\n * Tudo o que está aqui é público (vai para os exports em /workflows).\n * Segredos ficam nas credenciais do n8n, nunca aqui.\n */\nconst CONFIG = {\n  schemaVersion: 1,\n\n  // Modelo provisório, barato, via OpenRouter. A escolha final sai do eval.\n  // Preços em USD por 1M tokens: confirmar no OpenRouter antes de cada eval,\n  // porque só servem para estimar o custo (o valor real é o do OpenRouter).\n  modelo: {\n    id: 'openai/gpt-4.1-mini',\n    precoEntradaUsdPorMilhao: 0.4,\n    precoSaidaUsdPorMilhao: 1.6,\n    timeoutMs: 25000,\n  },\n  usdParaEur: 0.92,\n\n  memoriaJanela: 12,\n\n  limites: {\n    mensagemMaxChars: 1000,\n    respostaMaxChars: 1200,\n    sessaoPorMinuto: 6,\n    sessaoPorDia: 60,\n    globalPorMinuto: 30,\n    globalPorDia: 1500,\n    custoDiarioMaxEur: 1,\n    quarentenasMaxPorSessao: 3,\n    quarentenaBloqueioMinutos: 60,\n    ctasMaxPorConversa: 2,\n  },\n\n  // Fuso usado para \"por dia\" (contadores e kill switch).\n  fusoHorario: 'Europe/Lisbon',\n\n  site: {\n    origens: ['https://nautica-ai-agency.com', 'https://www.nautica-ai-agency.com'],\n    emailContacto: 'hello@nautica-ai-agency.com',\n  },\n\n  cal: {\n    url: 'https://cal.com/nautica-ai-xuismz/30min',\n    textoLink: 'marcar a chamada de diagnóstico',\n  },\n\n  // Links que podem aparecer numa resposta. Tudo o resto é removido.\n  linksPermitidos: [\n    { host: 'nautica-ai-agency.com', prefixo: '/' },\n    { host: 'www.nautica-ai-agency.com', prefixo: '/' },\n    { host: 'cal.com', prefixo: '/nautica-ai-xuismz/' },\n    { host: 'app.cal.com', prefixo: '/nautica-ai-xuismz/' },\n  ],\n\n  // Marcador que o agente escreve onde quer a chamada à ação.\n  // O pós-processamento troca-o pelo link do Cal.com pré-preenchido.\n  marcadorCta: '[[MARCAR]]',\n\n  motivosHandoff: ['lead_qualificado', 'pede_humano', 'reclamacao', 'outro'],\n\n  // Base de conhecimento: ficheiro no Google Drive lido pelo kb-sync. Pode ser\n  // um .md (descarregado tal como está) ou um Google Doc (exportado em\n  // Markdown). Atualizar o .md com \"Gerir versões → Carregar nova versão\",\n  // para o ID não mudar.\n  kb: {\n    driveFileId: '1hObVLQh_YVhpTN6THlxmnMuHYmII-w3T', // Base_Conhecimento_Chatbot_Nautica.md\n  },\n\n  notion: {\n    versaoApi: '2022-06-28',\n    // Base onde o bot escreve (dentro de \"CRM Clientes\").\n    chatbotSite: '898aca1a-b806-438f-8072-1fcaaab208f0',\n    // CRMs dos comerciais: SÓ LEITURA, para saber se o contacto já existe.\n    // tipoTelefone: tipo da propriedade Telefone em cada base.\n    crms: [\n      { nome: 'Clientes Site', id: 'b6f1d968-06dc-48fc-ac7b-fff78e32afe1', tipoTelefone: 'phone_number' },\n      { nome: 'CRM Nautica AI', id: '96af931a-07df-452c-bb9b-6160712ade3c', tipoTelefone: 'rich_text' },\n    ],\n  },\n};\n\n// ===== código deste nó =====\nif (!CONFIG.kb.driveFileId) {\n  throw new Error('Falta o ID do ficheiro da base de conhecimento (CONFIG.kb.driveFileId em src/config.js).');\n}\nreturn [{ json: { docId: CONFIG.kb.driveFileId } }];"
       }
     },
     {
-      "id": "1c1c3423-05ee-4c13-a806-de93236689c9",
-      "name": "[NORMALIZE] Exportar Google Doc",
+      "id": "1da5a728-5968-4197-a624-b27df51217d4",
+      "name": "[NORMALIZE] Metadados do ficheiro",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        440,
+        330,
         0
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}/export",
+        "url": "=https://www.googleapis.com/drive/v3/files/{{ $json.docId }}?fields=id,name,mimeType&supportsAllDrives=true",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleDriveOAuth2Api",
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "mimeType",
-              "value": "text/markdown"
-            }
-          ]
-        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": null,
+          "name": "Google Drive kb"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "42e047ed-cb96-4829-abb3-76367c8dacf5",
+      "name": "[NORMALIZE] Descarregar base",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        550,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://www.googleapis.com/drive/v3/files/' + $json.id + ($json.mimeType === 'application/vnd.google-apps.document' ? '/export?mimeType=text%2Fmarkdown' : '?alt=media&supportsAllDrives=true') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleDriveOAuth2Api",
         "options": {
           "timeout": 20000,
           "response": {
@@ -241,14 +260,25 @@
       "main": [
         [
           {
-            "node": "[NORMALIZE] Exportar Google Doc",
+            "node": "[NORMALIZE] Metadados do ficheiro",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "[NORMALIZE] Exportar Google Doc": {
+    "[NORMALIZE] Metadados do ficheiro": {
+      "main": [
+        [
+          {
+            "node": "[NORMALIZE] Descarregar base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "[NORMALIZE] Descarregar base": {
       "main": [
         [
           {

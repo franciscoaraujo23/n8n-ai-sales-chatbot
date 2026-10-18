@@ -115,7 +115,7 @@ const enviar = r.enviar || r.teste;
 return [{
   json: {
     resposta: enviar
-      ? 'Pedido registado: a equipa da Nautica foi avisada e vai dar seguimento.'
+      ? 'Pedido registado: a equipa da Náutica foi avisada e vai dar seguimento.'
       : 'A equipa já tinha sido avisada sobre esta conversa com o mesmo motivo; não é preciso voltar a avisar.',
   },
 }];

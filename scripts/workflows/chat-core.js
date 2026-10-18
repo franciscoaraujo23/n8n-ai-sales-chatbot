@@ -146,7 +146,7 @@ return [{
     const sessao = `={{ ${NO_PREPARAR}.session_id }}`;
     const toolLead = w.no('[TOOL] registar_lead', '@n8n/n8n-nodes-langchain.toolWorkflow', 2.2, {
       description:
-        'Guarda os dados do visitante para a equipa da Nautica. Envia tudo o que já sabes; ' +
+        'Guarda os dados do visitante para a equipa da Náutica. Envia tudo o que já sabes; ' +
         'campos que não sabes ficam vazios e não apagam os anteriores. Devolve uma frase curta ' +
         'a dizer se os dados ficaram guardados ou se o email/telefone parecem inválidos.',
       workflowId: L.refWorkflow('Chatbot – tool-registar-lead'),
@@ -164,7 +164,7 @@ return [{
 
     const toolHumano = w.no('[TOOL] avisar_humano', '@n8n/n8n-nodes-langchain.toolWorkflow', 2.2, {
       description:
-        'Avisa a equipa da Nautica sobre esta conversa. Usa quando o visitante pede uma pessoa ' +
+        'Avisa a equipa da Náutica sobre esta conversa. Usa quando o visitante pede uma pessoa ' +
         'faz uma reclamação, ou é um lead qualificado que já deixou contacto.',
       workflowId: L.refWorkflow('Chatbot – tool-avisar-humano'),
       workflowInputs: L.entradas({

@@ -145,3 +145,11 @@ test('URLs soltos permitidos ficam clicáveis; links Markdown ficam como estão'
     '[nautica-ai-agency.com/laboratorio.html](https://www.nautica-ai-agency.com/laboratorio.html)'
   );
 });
+
+test('grafiaMarca acentua a marca e deixa URLs e emails intactos', () => {
+  assert.equal(p.grafiaMarca('A Nautica AI e a equipa da Nautica.'), 'A Náutica AI e a equipa da Náutica.');
+  const intacto = 'Veja https://nautica-ai-agency.com/Nautica e escreva para hello@nautica-ai-agency.com ou Nautica-AI.';
+  assert.equal(p.grafiaMarca(intacto), intacto);
+  assert.equal(p.grafiaMarca('Náutica AI'), 'Náutica AI');
+  assert.equal(p.posProcessar('Somos a Nautica AI.', { ctasAnteriores: 0 }, CONFIG).texto, 'Somos a Náutica AI.');
+});

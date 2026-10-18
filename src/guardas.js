@@ -213,7 +213,7 @@ function respostaFixa(motivo, cfg) {
     sessao_bloqueada: `Esta conversa foi pausada. Se quiser falar connosco, pode ${cal} ou escrever para ${email}.`,
     mensagem_vazia: 'Não recebi nenhuma mensagem. Em que posso ajudar?',
     mensagem_longa: `A mensagem é um pouco longa para este chat. Consegue resumi-la em poucas frases? Se preferir explicar com calma, pode ${cal}.`,
-    quarentena: `Não posso ajudar com esse pedido. Posso responder a perguntas sobre os serviços da Nautica AI ou ajudar a ${cal}.`,
+    quarentena: `Não posso ajudar com esse pedido. Posso responder a perguntas sobre os serviços da Náutica AI ou ajudar a ${cal}.`,
     limite_sessao: `Está a enviar mensagens muito depressa. Aguarde um minuto e tente outra vez. Se preferir, pode ${cal}.`,
     teto_global: `De momento o assistente não está disponível. Pode ${cal} ou escrever para ${email}.`,
     kill_switch_custo: `De momento o assistente não está disponível. Pode ${cal} ou escrever para ${email}.`,

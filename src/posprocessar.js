@@ -203,8 +203,17 @@ function detetarPtBr(texto) {
 /**
  * Pipeline completo. `ctx`: { nome, email, ctasAnteriores } da sessão.
  */
+/**
+ * A marca escreve-se "Náutica". O título "Sobre a Nautica" da base e os
+ * domínios não levam acento, e o modelo copia-os. Só toca na palavra com
+ * maiúscula e solta, por isso os URLs (em minúsculas) ficam intactos.
+ */
+function grafiaMarca(texto) {
+  return String(texto || '').replace(/(?<![\w./@-])Nautica(?![\w-])/g, 'Náutica');
+}
+
 function posProcessar(texto, ctx, cfg) {
-  const links = filtrarLinks(texto || '', cfg);
+  const links = filtrarLinks(grafiaMarca(texto), cfg);
   const comMarcador = calParaMarcador(links.texto, cfg);
   const corte = cortarResposta(comMarcador, cfg.limites.respostaMaxChars);
   const cta = aplicarCta(corte.texto, ctx, cfg);
@@ -231,5 +240,6 @@ module.exports = {
   calParaMarcador,
   tornarClicaveis,
   detetarPtBr,
+  grafiaMarca,
   posProcessar,
 };

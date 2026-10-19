@@ -358,7 +358,8 @@
             "session_id": "={{ $('[NORMALIZE] Preparar contexto').first().json.session_id }}",
             "motivo": "={{ $fromAI('motivo', 'Exatamente um de: pede_humano, reclamacao, outro', 'string') }}",
             "origem": "agente",
-            "resumo": "={{ $fromAI('resumo', 'Resumo da conversa para a equipa continuar sem a reler, em português de Portugal', 'string') }}"
+            "resumo": "={{ $fromAI('resumo', 'Resumo da conversa para a equipa continuar sem a reler, em português de Portugal', 'string') }}",
+            "handoff_id": ""
           },
           "matchingColumns": [],
           "schema": [
@@ -395,6 +396,16 @@
             {
               "id": "resumo",
               "displayName": "resumo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "handoff_id",
+              "displayName": "handoff_id",
               "required": false,
               "defaultMatch": false,
               "display": true,

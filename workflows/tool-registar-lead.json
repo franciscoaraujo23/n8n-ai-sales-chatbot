@@ -674,7 +674,8 @@
             "session_id": "={{ $('[TOOL] Gravar lead (Postgres)').first().json.session_id }}",
             "motivo": "lead_qualificado",
             "origem": "automatico",
-            "resumo": "={{ $('[TOOL] Gravar lead (Postgres)').first().json.resumo || $('[TOOL] Gravar lead (Postgres)').first().json.problema || 'Lead com contacto registado pelo chatbot (sem resumo).' }}"
+            "resumo": "={{ $('[TOOL] Gravar lead (Postgres)').first().json.resumo || $('[TOOL] Gravar lead (Postgres)').first().json.problema || 'Lead com contacto registado pelo chatbot (sem resumo).' }}",
+            "handoff_id": ""
           },
           "matchingColumns": [],
           "schema": [
@@ -711,6 +712,16 @@
             {
               "id": "resumo",
               "displayName": "resumo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "handoff_id",
+              "displayName": "handoff_id",
               "required": false,
               "defaultMatch": false,
               "display": true,

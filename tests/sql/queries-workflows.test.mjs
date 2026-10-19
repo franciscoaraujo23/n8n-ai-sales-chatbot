@@ -60,35 +60,42 @@ test('kb-sync: marcar alertado só com o Discord a aceitar', async () => {
   assert.equal((await correr(db, sql, { kb_id: id, ok: true })).length, 1);
 });
 
-test('tool-avisar-humano: registar aviso devolve dados do lead e idempotência', async () => {
+test('tool-avisar-humano: registar aviso é idempotente por conversa e motivo', async () => {
   const db = await baseNova();
-  await db.query(`SELECT * FROM registar_lead($1::jsonb)`, [JSON.stringify({ session_id: SESSAO, nome: 'Ana', email: 'ana@x.pt' })]);
   const sql = query('tool-avisar-humano.json', '[TOOL] Registar aviso');
   const p = { session_id: SESSAO, motivo: 'lead_qualificado', resumo: 'r' };
   let [r] = await correr(db, sql, p);
-  assert.deepEqual([r.enviar, r.teste, r.nome, r.email, r.crm_existente], [true, false, 'Ana', 'ana@x.pt', false]);
-  assert.deepEqual(r.crm_paginas, []);
+  assert.deepEqual([r.enviar, r.teste], [true, false]);
   [r] = await correr(db, sql, p);
   assert.equal(r.enviar, false);
-  const [sem] = await correr(db, sql, { session_id: 'outra', motivo: 'pede_humano', resumo: 'r' });
-  assert.deepEqual([sem.enviar, sem.nome], [true, null]);
 
   const estado = query('tool-avisar-humano.json', '[LOGGING] Estado do envio');
   const [e] = await correr(db, estado, { handoff_id: r.handoff_id, ok: false, erro: '404' });
   assert.equal(e.discord_estado, 'falhado');
 });
 
-test('tool-avisar-humano: só segue sem esperar quando o contacto já está gravado', async () => {
+test('tool-avisar-humano: a fase de envio relê o lead gravado depois do aviso', async () => {
   const db = await baseNova();
-  const sql = query('tool-avisar-humano.json', '[GUARD] Contacto já gravado?');
-  assert.equal((await correr(db, sql, { session_id: SESSAO }))[0].tem_contacto, false);
-  await db.query(`SELECT * FROM registar_lead($1::jsonb)`, [JSON.stringify({ session_id: SESSAO, nome: 'Ana' })]);
-  assert.equal((await correr(db, sql, { session_id: SESSAO }))[0].tem_contacto, false);
-  await db.query(`SELECT * FROM registar_lead($1::jsonb)`, [JSON.stringify({ session_id: SESSAO, email: 'ana@exemplo.pt', dominios_teste: ['exemplo.pt'] })]);
-  assert.equal((await correr(db, sql, { session_id: SESSAO }))[0].tem_contacto, true);
-  // Lead de teste visível → o aviso fica "teste" e não vai para o Discord.
-  const [r] = await correr(db, query('tool-avisar-humano.json', '[TOOL] Registar aviso'), { session_id: SESSAO, motivo: 'pede_humano', resumo: 'r' });
-  assert.deepEqual([r.enviar, r.teste, r.email], [false, true, 'ana@exemplo.pt']);
+  const registar = query('tool-avisar-humano.json', '[TOOL] Registar aviso');
+  const reler = query('tool-avisar-humano.json', '[TOOL] Reler aviso e lead');
+  const lead = (s, email) => db.query(`SELECT * FROM registar_lead($1::jsonb)`, [JSON.stringify({ session_id: s, nome: 'Rui', email, dominios_teste: ['exemplo.pt'] })]);
+
+  // Ordem real do n8n: o aviso é gravado ANTES do lead.
+  const [real] = await correr(db, registar, { session_id: SESSAO, motivo: 'pede_humano', resumo: 'r' });
+  await lead(SESSAO, 'rui@empresa.pt');
+  const [r] = await correr(db, reler, { handoff_id: real.handoff_id });
+  assert.deepEqual([r.teste, r.email, r.nome, r.motivo, r.resumo], [false, 'rui@empresa.pt', 'Rui', 'pede_humano', 'r']);
+
+  const [teste] = await correr(db, registar, { session_id: 'sessao-teste', motivo: 'pede_humano', resumo: 'r' });
+  await lead('sessao-teste', 'rui@exemplo.pt');
+  const [t2] = await correr(db, reler, { handoff_id: teste.handoff_id });
+  assert.equal(t2.teste, true);
+  const { rows } = await db.query('SELECT discord_estado, lead_id IS NOT NULL AS ligado FROM handoffs WHERE id = $1', [teste.handoff_id]);
+  assert.deepEqual(rows[0], { discord_estado: 'teste', ligado: true });
+
+  // Só avisos pendentes: depois de enviado, reler não devolve nada.
+  await correr(db, query('tool-avisar-humano.json', '[LOGGING] Estado do envio'), { handoff_id: real.handoff_id, ok: true, erro: null });
+  assert.equal((await correr(db, reler, { handoff_id: real.handoff_id })).length, 0);
 });
 
 test('tool-registar-lead: gravar, reservar e concluir pela ordem do workflow', async () => {

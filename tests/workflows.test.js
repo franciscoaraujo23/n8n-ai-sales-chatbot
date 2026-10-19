@@ -119,14 +119,28 @@ test('avisar-humano: motivo fora do enum passa a "outro"', () => {
   assert.deepEqual(v, { valido: true, session_id: SESSAO, motivo: 'outro', resumo: '(sem resumo)' });
 });
 
-test('avisar-humano: mensagem junta o pedido e os dados do lead', () => {
+test('avisar-humano: mensagem junta o pedido e os dados do lead relidos', () => {
   const [m] = correr(AH, '[NORMALIZE] Mensagem para o Discord', {
-    entrada: [{ handoff_id: 3, enviar: true, nome: 'Ana', email: 'ana@x.pt', crm_existente: false, crm_paginas: [] }],
-    nos: { '[GUARD] Validar pedido': { valido: true, session_id: SESSAO, motivo: 'pede_humano', resumo: 'Quer falar com alguém.' } },
+    entrada: [{ handoff_id: 3, session_id: SESSAO, motivo: 'pede_humano', resumo: 'Quer falar com alguém.', teste: false,
+      nome: 'Ana', email: 'ana@x.pt', crm_existente: false, crm_paginas: [] }],
   });
   assert.equal(m.handoff_id, 3);
   assert.ok(m.mensagem.includes('Pede para falar com uma pessoa'));
   assert.ok(m.mensagem.includes('Quer falar com alguém.'));
+  assert.ok(m.mensagem.includes('Contacto: ana@x.pt'));
+});
+
+test('avisar-humano: o envio sai do caminho da tool e espera antes de reler', () => {
+  const agendar = AH.nodes.find((n) => n.name === '[TOOL] Agendar envio');
+  assert.equal(agendar.parameters.workflowId.value, 'REF:Chatbot – tool-avisar-humano');
+  assert.equal(agendar.parameters.options.waitForSubWorkflow, false);
+  const seguinte = (no, saida = 0) => AH.connections[no].main[saida].map((l) => l.node);
+  assert.deepEqual(seguinte('[GUARD] Fase de envio?', 0), ['[GUARD] Esperar pelo registar_lead']);
+  assert.deepEqual(seguinte('[GUARD] Esperar pelo registar_lead'), ['[TOOL] Reler aviso e lead']);
+  // Na fase de registo não há Discord: só o agendamento e a resposta.
+  assert.deepEqual(seguinte('[TOOL] Agendar envio'), ['[OUTPUT] Resposta ao agente']);
+  const espera = AH.nodes.find((n) => n.name === '[GUARD] Esperar pelo registar_lead').parameters;
+  assert.ok(espera.amount >= 5 && espera.unit === 'seconds');
 });
 
 test('avisar-humano: resposta ao agente distingue aviso novo de repetido', () => {

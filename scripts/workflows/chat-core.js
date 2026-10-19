@@ -174,6 +174,7 @@ return [{
         motivo: `={{ $fromAI('motivo', 'Exatamente um de: ${CONFIG.motivosHandoff.filter((m) => m !== CONFIG.motivoAutomatico).join(', ')}', 'string') }}`,
         origem: 'agente',
         resumo: "={{ $fromAI('resumo', 'Resumo da conversa para a equipa continuar sem a reler, em português de Portugal', 'string') }}",
+        handoff_id: '',
       }),
     }, [1620, 20]);
 

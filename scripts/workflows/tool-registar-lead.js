@@ -183,6 +183,7 @@ return {
         motivo: 'lead_qualificado',
         origem: 'automatico',
         resumo: `={{ ${GRAVADO}.first().json.resumo || ${GRAVADO}.first().json.problema || 'Lead com contacto registado pelo chatbot (sem resumo).' }}`,
+        handoff_id: '',
       }),
       mode: 'once',
       options: { waitForSubWorkflow: false },

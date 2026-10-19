@@ -119,23 +119,28 @@ function contaCal(cfg) {
  * esgotou as chamadas à ação. Os restantes marcadores são removidos.
  * Um link do Cal.com escrito diretamente pelo agente também conta.
  */
+/**
+ * Marcador da CTA, com texto opcional: "[[MARCAR]]" (texto por omissão,
+ * cal.textoLink) ou "[[MARCAR|texto]]", que o calParaMarcador cria quando o
+ * agente escreveu o seu próprio link do Cal.com, para a frase dele continuar
+ * a fazer sentido ("pode [marcar um horário](…)").
+ */
+function regexMarcador(cfg) {
+  const base = cfg.marcadorCta.slice(0, -2).replace(/[[\]|]/g, '\\$&');
+  return new RegExp(base + '(?:\\|([^\\]\\n]{1,80}))?\\]\\]', 'g');
+}
+
 function aplicarCta(texto, ctx, cfg) {
-  const marcador = cfg.marcadorCta;
   const anteriores = (ctx && ctx.ctasAnteriores) || 0;
   const podeUsar = anteriores < cfg.limites.ctasMaxPorConversa;
   let usada = false;
 
-  let t = String(texto)
-    .split(marcador)
-    .reduce((acc, parte, i) => {
-      if (i === 0) return parte;
-      if (podeUsar && !usada) {
-        usada = true;
-        const url = urlCal(ctx && ctx.nome, ctx && ctx.email, cfg);
-        return acc + `[${cfg.cal.textoLink}](${url})` + parte;
-      }
-      return acc + parte;
-    }, '');
+  let t = String(texto).replace(regexMarcador(cfg), (m, rotulo) => {
+    if (!podeUsar || usada) return '';
+    usada = true;
+    const url = urlCal(ctx && ctx.nome, ctx && ctx.email, cfg);
+    return `[${(rotulo || '').trim() || cfg.cal.textoLink}](${url})`;
+  });
 
   // Arruma o que sobra de marcadores removidos (bullets vazios, espaços).
   t = t
@@ -158,7 +163,10 @@ function calParaMarcador(texto, cfg) {
   const conta = contaCal(cfg).replace(/[^a-z0-9-]/gi, '');
   const url = 'https?://(?:app\\.)?cal\\.com/' + conta + '(?:/[^\\s)\\]]*)?';
   return String(texto)
-    .replace(new RegExp('\\[[^\\]\\n]*\\]\\(\\s*<?' + url + '>?\\s*\\)', 'g'), cfg.marcadorCta)
+    .replace(new RegExp('\\[([^\\]\\n|]*)\\]\\(\\s*<?' + url + '>?\\s*\\)', 'g'), (m, rotulo) => {
+      const r = rotulo.trim();
+      return r ? cfg.marcadorCta.slice(0, -2) + '|' + r + ']]' : cfg.marcadorCta;
+    })
     .replace(new RegExp('(?<![\\w/])' + url, 'g'), (m) => {
       const final = (m.match(/[.,;:!?'"»]+$/) || [''])[0];
       return cfg.marcadorCta + final;

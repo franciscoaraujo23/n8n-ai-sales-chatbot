@@ -121,7 +121,7 @@ test('posProcessar junta tudo pela ordem certa', () => {
 test('links do Cal.com escritos pelo agente passam a marcador', () => {
   assert.equal(
     p.calParaMarcador('Marque em https://cal.com/nautica-ai-xuismz/30min. Ou [aqui](https://app.cal.com/nautica-ai-xuismz/30min).', CONFIG),
-    'Marque em [[MARCAR]]. Ou [[MARCAR]].'
+    'Marque em [[MARCAR]]. Ou [[MARCAR|aqui]].'
   );
   assert.equal(p.calParaMarcador('https://cal.com/outra-conta/30min', CONFIG), 'https://cal.com/outra-conta/30min');
 });
@@ -152,4 +152,14 @@ test('grafiaMarca acentua a marca e deixa URLs e emails intactos', () => {
   assert.equal(p.grafiaMarca(intacto), intacto);
   assert.equal(p.grafiaMarca('Náutica AI'), 'Náutica AI');
   assert.equal(p.posProcessar('Somos a Nautica AI.', { ctasAnteriores: 0 }, CONFIG).texto, 'Somos a Náutica AI.');
+});
+
+test('link do Cal.com com texto do agente mantém o texto (a frase continua a fazer sentido)', () => {
+  const r = p.posProcessar('Se quiser, pode [marcar um horário](https://cal.com/nautica-ai-xuismz/30min) para a chamada.',
+    { nome: 'Ana', email: 'a@x.pt', ctasAnteriores: 0 }, CONFIG);
+  assert.equal(r.texto, 'Se quiser, pode [marcar um horário](https://cal.com/nautica-ai-xuismz/30min?name=Ana&email=a%40x.pt) para a chamada.');
+  assert.equal(r.ctaUsada, true);
+  // Sem texto, ou com o máximo já usado, comporta-se como o marcador simples.
+  assert.ok(p.aplicarCta('Pode [[MARCAR]].', {}, CONFIG).texto.includes(`[${CONFIG.cal.textoLink}](`));
+  assert.equal(p.aplicarCta('Pode [[MARCAR|marcar já]].', { ctasAnteriores: 2 }, CONFIG).texto, 'Pode.');
 });

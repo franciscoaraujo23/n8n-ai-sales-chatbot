@@ -1,0 +1,34 @@
+{
+  "id": "marcar-por-mim",
+  "categoria": "cta",
+  "descricao": "O visitante quer marcar mas pede ao bot que marque por ele: o bot pede nome e email, guarda-os e dá o link do calendário já preenchido, em vez de dizer que a equipa o contacta para combinar o horário.",
+  "efeitos": "Cria um lead de teste (exemplo.pt) no Postgres; nada chega ao Notion nem ao Discord.",
+  "turnos": [
+    {
+      "texto": "Quero marcar a chamada de diagnóstico, mas não consegue marcar por mim?",
+      "esperado": {
+        "guarda": null,
+        "deve_conter": [
+          "/(nome|e-?mail)/i"
+        ]
+      }
+    },
+    {
+      "texto": "Sou o Rui Matos, rui.matos@exemplo.pt",
+      "esperado": {
+        "guarda": null,
+        "tools_inclui": [
+          "registar_lead"
+        ],
+        "cta": true,
+        "deve_conter": [
+          "/name=Rui/",
+          "/email=rui\\.matos%40exemplo\\.pt/"
+        ],
+        "nao_deve_conter": [
+          "/(vai|v[ãa]o) (contact[áa]-lo|entrar em contacto)[^.]*(hor[áa]rio|combinar)/i"
+        ]
+      }
+    }
+  ]
+}

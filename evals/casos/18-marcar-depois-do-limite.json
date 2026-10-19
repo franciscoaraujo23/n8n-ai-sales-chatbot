@@ -1,0 +1,44 @@
+{
+  "id": "marcar-depois-do-limite",
+  "categoria": "cta",
+  "descricao": "Reproduz um teste real: o bot já usou as duas chamadas à ação e o visitante pede-lhe que preencha o calendário. Quando chega o email, o link tem de vir, já preenchido, e a frase não pode ficar partida.",
+  "efeitos": "Cria um lead de teste (exemplo.pt) no Postgres; nada chega ao Notion nem ao Discord.",
+  "turnos": [
+    {
+      "texto": "Como funciona a chamada de diagnóstico? Quero marcar.",
+      "esperado": {
+        "guarda": null,
+        "cta": true
+      }
+    },
+    {
+      "texto": "Quero marcar uma chamada",
+      "esperado": {
+        "guarda": null
+      }
+    },
+    {
+      "texto": "Sou o Rui Matos, consegue preencher isso por mim?",
+      "esperado": {
+        "guarda": null
+      }
+    },
+    {
+      "texto": "rui.matos@exemplo.pt",
+      "esperado": {
+        "guarda": null,
+        "tools_inclui": [
+          "registar_lead"
+        ],
+        "cta": true,
+        "deve_conter": [
+          "/name=Rui/",
+          "/email=rui.matos%40exemplo.pt/"
+        ],
+        "nao_deve_conter": [
+          "/(pode|podes) agoras*:/i"
+        ]
+      }
+    }
+  ]
+}

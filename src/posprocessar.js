@@ -130,9 +130,20 @@ function regexMarcador(cfg) {
   return new RegExp(base + '(?:\\|([^\\]\\n]{1,80}))?\\]\\]', 'g');
 }
 
+/**
+ * O visitante pediu a marcação neste turno? Pedido explícito ("quero
+ * marcar", "mande o link") ou acabou de deixar o email (para o calendário
+ * abrir preenchido). O máximo de CTAs existe para o bot não insistir; não
+ * se aplica a quem pede o link.
+ */
+const PEDIDO_MARCACAO = /\b(marcar|marque|marco|agendar|agende|agendo|link|calend[áa]rio)\b|\b(quero|posso|como|queria)\b[^.?!]{0,30}\b(chamada|reuni[ãa]o|call)\b/i;
+function ctaPedida(textoVisitante, deixouEmail) {
+  return Boolean(deixouEmail) || PEDIDO_MARCACAO.test(String(textoVisitante || ''));
+}
+
 function aplicarCta(texto, ctx, cfg) {
   const anteriores = (ctx && ctx.ctasAnteriores) || 0;
-  const podeUsar = anteriores < cfg.limites.ctasMaxPorConversa;
+  const podeUsar = anteriores < cfg.limites.ctasMaxPorConversa || Boolean(ctx && ctx.ctaPedida);
   let usada = false;
 
   let t = String(texto).replace(regexMarcador(cfg), (m, rotulo) => {
@@ -246,6 +257,7 @@ module.exports = {
   urlCal,
   aplicarCta,
   calParaMarcador,
+  ctaPedida,
   tornarClicaveis,
   detetarPtBr,
   grafiaMarca,

@@ -192,10 +192,14 @@ const prep = $('[NORMALIZE] Preparar contexto').first().json;
 const c = $('[GUARD] Avaliar conteúdo e custo').first().json.contexto;
 const lead = $input.first().json || {};
 
+// O visitante deixou o email neste turno (registar_lead com email)?
+const deixouEmail = (a.intermediateSteps || []).some((s) =>
+  s.action && /registar_lead/.test(s.action.tool) && s.action.toolInput && s.action.toolInput.email);
 const pp = posProcessar(a.output, {
   nome: lead.nome || c.lead_nome,
   email: lead.email || c.lead_email,
   ctasAnteriores: c.ctas_anteriores,
+  ctaPedida: ctaPedida(prep.texto, deixouEmail),
 }, CONFIG);
 const { tools, passos } = resumirPassos(a.intermediateSteps);
 const consumo = estimarConsumo({

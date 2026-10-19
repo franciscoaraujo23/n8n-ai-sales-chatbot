@@ -57,6 +57,13 @@ versão em produção (2.29.10), não na documentação.
   o modelo esqueceu-se de chamar `avisar_humano` em 4 de 5 conversas. O
   `tool-registar-lead` avisa sozinho (`lead_qualificado`) depois da
   sincronização, para o aviso já levar o link do Notion e a verificação nos CRMs.
+- **O máximo de duas chamadas à ação é para as propostas do bot, não para
+  pedidos do visitante** (2026-10-20). Num teste real, o bot já tinha usado as
+  duas quando o visitante pediu para marcar e deu o email: o link foi
+  removido e ficou "Pode agora:". Quando a mensagem pede a marcação ou o link,
+  ou o visitante acabou de deixar o email, o link passa sempre (`ctaPedida`,
+  a mesma regra no pós-processamento e nos evals). A decisão de não insistir
+  mantém-se.
 - **`lead_qualificado` reservado ao aviso automático.** Se o agente o pedir,
   passa a `outro`: um aviso prematuro, ainda sem contacto, ocupava o par
   (conversa, motivo) e bloqueava o automático.

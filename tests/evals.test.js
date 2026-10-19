@@ -44,12 +44,22 @@ test('erro do núcleo é uma falha clara', () => {
 
 test('verificações da conversa: CTAs, tools e chamada proposta', () => {
   const turnos = [
-    { resposta: { cta_usada: true, tools: [] } },
-    { resposta: { cta_usada: true, tools: ['_TOOL_registar_lead'] } },
-    { resposta: { cta_usada: true, tools: [] } },
+    { texto: 'Faz sentido para mim.', resposta: { cta_usada: true, tools: [] } },
+    { texto: 'O meu nome é Ana.', resposta: { cta_usada: true, tools: ['_TOOL_registar_lead'] } },
+    { texto: 'E quanto tempo demora?', resposta: { cta_usada: true, tools: [] } },
   ];
   const caso = { conversa: { tools_inclui: ['registar_lead', 'avisar_humano'], cta_em_algum_turno: true } };
-  assert.deepEqual(falhas(v.verificarConversa(turnos, caso, { ctasMax: 2 })), ['no máximo 2 chamadas à ação', 'usou avisar_humano em algum turno']);
+  assert.deepEqual(falhas(v.verificarConversa(turnos, caso, { ctasMax: 2 })),
+    ['no máximo 2 chamadas à ação por iniciativa do bot', 'usou avisar_humano em algum turno']);
+
+  // Links pedidos pelo visitante (ou com o email que acabou de dar) não contam.
+  const pedidos = [
+    turnos[0],
+    { texto: 'Quero marcar, mande o link.', resposta: { cta_usada: true, tools: [] } },
+    { texto: 'ana@exemplo.pt', resposta: { cta_usada: true, tools: ['_TOOL_registar_lead'] } },
+    turnos[2],
+  ];
+  assert.deepEqual(falhas(v.verificarConversa(pedidos, { conversa: { cta_em_algum_turno: true } }, { ctasMax: 2 })), []);
 });
 
 test('todos os casos em evals/casos são JSON válidos e bem formados', () => {

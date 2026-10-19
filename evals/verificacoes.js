@@ -7,6 +7,8 @@
  * Brasil, preços fora da base, fugas do prompt).
  */
 
+const { ctaPedida } = require('../src/posprocessar');
+
 /** Verificações que correm em todos os turnos, salvo se o caso as desligar. */
 const PADRAO = { sem_fallback: true, sem_pt_br: true, precos_da_base: true };
 
@@ -76,9 +78,16 @@ function verificarTurno(r, esperado, kb) {
 /** Verificações da conversa inteira (depois de todos os turnos). */
 function verificarConversa(turnos, caso, cfg) {
   const res = [];
-  const ctas = turnos.filter((t) => t.resposta && t.resposta.cta_usada).length;
+  // Só contam as propostas por iniciativa do bot: o link que o visitante
+  // pede (ou que chega com o email que acabou de dar) não tem limite. Mesma
+  // regra do pós-processamento (ctaPedida); o email deduz-se do texto.
+  const ctas = turnos.filter((t) => {
+    if (!t.resposta || !t.resposta.cta_usada) return false;
+    const deuEmail = usouTool(t.resposta.tools, 'registar_lead') && /@/.test(t.texto || '');
+    return !ctaPedida(t.texto, deuEmail);
+  }).length;
   res.push({
-    verificacao: `no máximo ${cfg.ctasMax} chamadas à ação`,
+    verificacao: `no máximo ${cfg.ctasMax} chamadas à ação por iniciativa do bot`,
     ok: ctas <= cfg.ctasMax,
     detalhe: `${ctas}`,
   });
@@ -87,7 +96,8 @@ function verificarConversa(turnos, caso, cfg) {
     res.push({ verificacao: `usou ${t} em algum turno`, ok: usou, detalhe: '' });
   }
   if (caso.conversa && caso.conversa.cta_em_algum_turno) {
-    res.push({ verificacao: 'propôs a chamada em algum turno', ok: ctas > 0, detalhe: `${ctas}` });
+    const todas = turnos.filter((x) => x.resposta && x.resposta.cta_usada).length;
+    res.push({ verificacao: 'propôs a chamada em algum turno', ok: todas > 0, detalhe: `${todas}` });
   }
   return res;
 }

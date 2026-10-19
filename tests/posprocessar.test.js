@@ -163,3 +163,17 @@ test('link do Cal.com com texto do agente mantém o texto (a frase continua a fa
   assert.ok(p.aplicarCta('Pode [[MARCAR]].', {}, CONFIG).texto.includes(`[${CONFIG.cal.textoLink}](`));
   assert.equal(p.aplicarCta('Pode [[MARCAR|marcar já]].', { ctasAnteriores: 2 }, CONFIG).texto, 'Pode.');
 });
+
+test('CTA pedida pelo visitante passa mesmo com o máximo já usado', () => {
+  assert.equal(p.ctaPedida('Quero marcar uma chamada'), true);
+  assert.equal(p.ctaPedida('Pode mandar o link outra vez?'), true);
+  assert.equal(p.ctaPedida('queria uma reunião convosco'), true);
+  assert.equal(p.ctaPedida('qualquer coisa', true), true, 'acabou de deixar o email');
+  assert.equal(p.ctaPedida('Perdemos tempo a confirmar marcações por telefone'), false);
+  assert.equal(p.ctaPedida('Quanto custa?'), false);
+  const esgotado = { nome: 'Rui', email: 'r@x.pt', ctasAnteriores: 2 };
+  assert.equal(p.aplicarCta('Pode [[MARCAR]].', esgotado, CONFIG).ctaUsada, false);
+  const pedida = p.aplicarCta('Pode [[MARCAR]].', { ...esgotado, ctaPedida: true }, CONFIG);
+  assert.equal(pedida.ctaUsada, true);
+  assert.ok(pedida.texto.includes('name=Rui&email=r%40x.pt'));
+});

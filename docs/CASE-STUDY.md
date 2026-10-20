@@ -1,217 +1,209 @@
-# Estudo de caso: o assistente do site da Náutica AI
+# Case study: the Náutica AI website sales agent
 
-Como construímos um chatbot de vendas em n8n que está em produção, quanto
-custa, como sabemos que funciona e o que aprendemos pelo caminho.
+How I built a production sales agent on n8n, what it costs, how I know it
+works, and what I learned along the way.
 
-## O objetivo
+## The goal
 
-O site da Náutica AI recebe visitantes que ainda não estão prontos para
-marcar uma chamada. O assistente existe para esse momento: responder às
-dúvidas com a informação verdadeira da empresa, perceber o negócio do
-visitante e, quando faz sentido, levá-lo à chamada de diagnóstico.
+Náutica AI's website gets visitors who aren't ready to book a call yet. The
+agent exists for that moment: answer their questions with the company's
+real information, understand their business, and, when it makes sense, take
+them to a discovery call.
 
-O sucesso mede-se por uma coisa: **um lead com contacto chega à equipa**, ou
-o visitante marca a chamada sozinho.
+Success comes down to one thing: **a lead with contact details reaches the
+team**, or the visitor books the call on their own.
 
-As restrições foram definidas antes de escrever código:
+I set the constraints before writing any code:
 
-- **Só a verdade da empresa.** Nada de preços, prazos ou clientes inventados.
-  A informação vem de uma base de conhecimento editada por quem não programa.
-- **Venda consultiva, sem pressão.** Uma pergunta de cada vez, honestidade
-  quando a automação não compensa, sem urgência falsa nem descontos.
-- **Português de Portugal**, sempre.
-- **Custo previsível**, com teto diário.
-- **Construído na ferramenta que a agência vende (n8n)**, e com qualidade para
-  servir de exemplo do nosso trabalho.
+- **Only the company's truth.** No invented prices, timelines or clients. The
+  information comes from a knowledge base edited by non-developers.
+- **Consultative selling, no pressure.** One question at a time, honesty
+  when automation isn't worth it, no fake urgency or discounts.
+- **European Portuguese**, always.
+- **Predictable cost**, with a daily cap.
+- **Built on the tool the agency sells (n8n)**, and good enough to serve as
+  an example of the agency's work.
 
-## O princípio: o modelo escreve, o código decide
+## The principle: the model writes, the code decides
 
-Um modelo de linguagem é ótimo a conversar e pouco fiável a cumprir regras.
-Por isso, tudo o que tem de estar sempre certo saiu das mãos do modelo:
+A language model is great at conversation and unreliable at following rules.
+So everything that has to be right every time is out of the model's hands:
 
-| O modelo faz | O código garante |
+| The model does | The code guarantees |
 |---|---|
-| Conversa, explica, faz perguntas | Bloqueia prompt injection antes de o modelo ver a mensagem |
-| Decide quando propor a chamada (escreve `[[MARCAR]]`) | Monta o link do Cal.com com nome e email e aplica o limite de propostas |
-| Decide quando registar um lead | Valida e limpa os dados; a conversa a que o lead pertence vem do sistema, nunca do modelo |
-| Escreve links | Só deixa passar links do site e do Cal.com |
-| — | Rate limits, teto de custo, resposta de recurso se o modelo falhar |
+| Talks, explains, asks questions | Blocks prompt injection before the model sees the message |
+| Decides when to propose the call (writes `[[MARCAR]]`) | Builds the Cal.com link with name and email and enforces the proposal limit |
+| Decides when to register a lead | Validates and cleans the data; the conversation a lead belongs to comes from the system, never from the model |
+| Writes links | Lets through only links to the website and the calendar |
+| — | Rate limits, cost cap, fallback reply if the model fails |
 
-O resultado é um bot com personalidade, mas cujas falhas possíveis são
-limitadas: no pior caso, diz algo fora do tom. Não consegue dar um link
-malicioso, ver dados de outra conversa ou gastar sem limite.
+The result is an agent with personality whose possible failures are
+bounded: at worst it says something off-tone. It can't hand out a malicious
+link, see another conversation's data, or spend without limit.
 
-## Como se constrói um workflow de n8n que se pode testar
+## Making n8n workflows testable
 
-O n8n é visual, e workflows desenhados à mão no editor são difíceis de rever,
-versionar e testar. Aqui os workflows são **definidos em JavaScript**:
+n8n is visual, and workflows drawn by hand are hard to review, version and
+test. Here the workflows are **defined in JavaScript**:
 
 ```
-src/*.js ──► scripts/workflows/*.js ──► build.js ──► workflows/*.json ──► API do n8n
+src/*.js ──► scripts/workflows/*.js ──► build.js ──► workflows/*.json ──► n8n API
    │                                                        ▲
-   └──► testes unitários           harness (simula o n8n) ──┘
+   └──► unit tests                 harness (mocks n8n) ─────┘
 ```
 
-- A lógica (guardas, validações, pós-processamento) vive em `src/`, em
-  JavaScript puro, e o build copia-a para os Code nodes. **O código que corre
-  em produção é o mesmo que os testes cobrem.**
-- Um harness corre o código *exato* dos workflows gerados, com uma simulação
-  de `$json`, `$input` e `$('nó')`. Apanha um nó com o nome trocado ou um
-  campo inexistente antes de chegar ao n8n.
-- As queries ao Postgres são testadas num Postgres 17 em memória (PGlite),
-  com as migrations reais.
-- Cada envio é validado com o n8n-mcp e confirmado pela API.
+- The logic (guards, validation, post-processing) lives in `src/` as plain
+  JavaScript, and the build copies it into the Code nodes. **The code running
+  in production is the code the tests cover.**
+- A harness runs the *exact* code of the generated workflows against a mock
+  of `$json`, `$input` and `$('node')`. A renamed node or a missing field is
+  caught before it ever reaches n8n.
+- Postgres queries are tested on an in-memory Postgres 17 (PGlite) with the
+  real migrations.
+- Every deployment is validated with n8n-mcp and confirmed through the API.
 
-O primeiro teste em produção mostrou porque é que isto vale a pena. O
-ambiente isolado dos Code nodes do n8n 2.29 não tem o objeto global `URL`, e
-o pós-processamento falhou com um `ReferenceError`. A correção foi ler URLs
-sem esse objeto. A lição ficou no próprio harness: passou a correr os Code
-nodes sem `URL`, para este tipo de erro nunca mais passar os testes.
+The first production test showed why this pays off: n8n 2.29's sandboxed Code
+nodes don't expose the global `URL` object. I rewrote the URL handling without it and made the harness run every Code
+node without `URL` too, so that class of bug can't pass the tests again.
 
-## Medir em vez de achar: os evals
+## Measuring instead of guessing: evals
 
-Testes unitários cobrem o código, mas não dizem se o bot conversa bem. Para
-isso há **evals**: conversas escritas como casos de teste (o que o visitante
-diz, o que a resposta tem de ter e não pode ter, que ferramentas deve usar),
-corridas contra o bot real.
+Unit tests cover the code, but they can't tell you whether the agent holds a
+good conversation. That's what **evals** are for: conversations written as
+test cases (what the visitor says, what the reply must and must not contain,
+which tools should be used), run against the live agent.
 
-Cada caso corre **cinco vezes**, porque um modelo responde de forma diferente
-de cada vez. Uma melhoria medida com uma só corrida pode ser sorte. Hoje são
-28 casos: perguntas frequentes, qualificação de um lead completa, preços fora
-da base, honestidade sobre o encaixe, deriva para português do Brasil,
-pedidos de uma pessoa, marcação, e uma bateria de 12 ataques.
+Every case runs **five times**, because a model answers differently each
+time and a one-run improvement can be luck. There are 28 cases: FAQs, a full
+lead qualification, out-of-scope prices, honesty about fit, drift into
+Brazilian Portuguese, requests for a human, booking flows, and a battery of
+12 attacks.
 
-Uma regra que poupou tempo: **ler as falhas antes de mexer no bot.** Na
-primeira bateria, metade das "falhas" eram das verificações (paráfrases
-corretas que uma expressão regular não apanhava). Corrigir a verificação,
-reavaliar as respostas já gravadas e só depois tocar no prompt.
+One rule saved a lot of time: **read the failures before touching the
+agent.** Some early "failures" were correct paraphrases that a regex didn't
+catch. Fix the check, re-score the recorded answers (`--reavaliar`), and only
+then change the prompt.
 
-## Escolher o modelo com dados
+## Choosing the model with data
 
-O modelo provisório (`gpt-4.1-mini`) tinha um problema persistente: à
-pergunta "que clientes já têm?", dizia que a empresa ainda não tinha clientes
-antes de falar da redução de risco. Três formulações do prompt não
-resolveram. Em vez de continuar a afinar o prompt para um modelo, testámos
-cinco modelos baratos com a mesma bateria, através do agente do n8n tal como
-está em produção:
+The interim model (`gpt-4.1-mini`) kept getting one case wrong: asked "who
+are your clients?", it volunteered that the company had none before talking
+about how risk is reduced for the customer. Instead of tuning the prompt to
+one model, I ran five inexpensive models through the same battery, through
+the n8n agent exactly as it runs in production:
 
-| Modelo | Corridas certas | Observação |
+| Model | Passing runs | Notes |
 |---|---|---|
-| `claude-haiku-5.5` | 58/60 | Registou o lead em todas as conversas; o mais barato |
-| `gemini-3.1-flash-lite` | 58/60 | Mais rápido, mas disse "já guardei o seu email" sem o guardar |
-| `gpt-4.1-mini` | 55/60 | Falha persistente no "quem somos" |
-| `gpt-5.6-luna` | 41/60 | Falhas dentro do agente do n8n |
-| `mistral-small-2603` | 5/60 | Incompatível com o agente do n8n |
+| `claude-haiku-5.5` | 58/60 | Registered the lead in every conversation; the cheapest |
+| `gemini-3.1-flash-lite` | 58/60 | Faster, but said "I've saved your email" without saving it |
+| `gpt-4.1-mini` | 55/60 | The persistent "who are you" failure |
+| `gpt-5.6-luna` | 41/60 | Errors inside the n8n agent |
+| `mistral-small-2603` | 5/60 | Not compatible with the n8n agent |
 
-O empate decidiu-se pelo **tipo de falha**. Um bot que diz ao visitante que
-guardou o contacto sem o guardar perde o lead e engana a pessoa: é a pior
-falha possível neste produto. O Haiku custa cerca de 2 s a mais por
-resposta, aceitável num chat com indicador de escrita.
+The tie was broken by **the kind of failure**. An agent that tells a visitor
+it saved their details without saving them loses the lead and misleads the
+person, the worst possible failure for this product. Haiku costs about two
+extra seconds per reply, which is fine in a chat with a typing indicator.
 
-## Problemas que só aparecem em produção
+## Problems that only show up in production
 
-### Respostas cortadas a meio de uma palavra
+### Replies cut off mid-word
 
-Com o modelo novo, cerca de 8% das respostas saíam cortadas e algumas
-vazias. As métricas dos evals mostraram que não era aleatório: o Haiku
-**raciocina antes de responder**, e esse raciocínio contava para o teto de
-700 tokens da resposta. Sobrava um espaço variável para o texto visível. Com
-o teto a 2000 tokens (o tamanho visível continua limitado no
-pós-processamento), os cortes e as respostas vazias desapareceram: zero em
-110 respostas.
+With the new model, about 8% of replies were truncated and a few came back
+empty. The eval metrics showed it wasn't random: Haiku **reasons before it
+answers**, and that reasoning counted against the 700-token output limit,
+leaving a variable amount of room for the visible text. With the limit
+raised to 2,000 tokens (visible length is still capped in post-processing),
+truncation and empty replies dropped to zero across 110 replies.
 
-### Duas ferramentas no mesmo passo
+### Two tools in the same step
 
-Quando um visitante pedia para falar com uma pessoa e deixava o email na
-mesma mensagem, a equipa recebia o aviso "sem contacto", e os leads de teste
-chegavam ao Discord.
+When a visitor asked for a human and left their email in the same message,
+the team got a "no contact yet" alert, and test leads reached Discord.
 
-A primeira hipótese foi uma corrida entre as duas ferramentas a correr em
-paralelo, e uma espera de 3 segundos não resolveu nada. Os dados mostraram
-outra coisa: o aviso ficava gravado **0,4 s antes** do lead, em todas as
-corridas. O n8n corre as ferramentas de um mesmo passo **em sequência**: o
-aviso ia até ao fim, Discord incluído, antes de o lead existir.
+I measured instead of guessing: across every run, the handoff was written
+**0.4 s before** the lead. n8n runs the tools of a single agent step
+**sequentially**, so the handoff, Discord message included, finished before
+the lead existed. That ruled out an approach based on waiting inside the
+tool, which assumed parallel execution.
 
-A correção foi tirar o envio do caminho da ferramenta. O aviso regista-se e
-responde logo ao agente; o workflow chama-se a si próprio sem esperar,
-aguarda 10 segundos, relê o aviso e o lead e só então envia. Funciona seja
-qual for a ordem, e a resposta ao visitante ficou mais rápida. A hipótese
-errada ficou documentada nas decisões, com a medição que a desmentiu.
+The fix took the notification off the tool's path. The handoff is recorded
+and the tool replies to the agent immediately; the workflow then calls
+itself without waiting, pauses for 10 seconds, re-reads the handoff and the
+lead, and only then sends. It works regardless of tool order, and the
+visitor's reply got faster.
 
-### O limite de propostas contra o próprio visitante
+### A proposal limit that got in the visitor's way
 
-O bot propõe a chamada no máximo duas vezes por conversa, para não insistir.
-Num teste real, o visitante pediu ajuda para marcar e deu o email depois de
-o bot já ter usado as duas propostas. O código removeu o link e ficou uma
-frase partida: "Pode agora:".
+The agent proposes the call at most twice per conversation, so it doesn't
+nag. In a real test, the visitor asked for help booking and gave their
+email after both proposals had been used: the code stripped the link and
+left a dangling sentence.
 
-O limite existe para as propostas do bot, não para os pedidos do visitante.
-Passou a haver uma exceção estreita: quando a mensagem pede a marcação ou o
-link, ou o visitante acabou de deixar o email, o link passa sempre. A mesma
-regra é usada no pós-processamento e nas verificações dos evals, e há um
-caso de eval que reproduz exatamente a conversa real.
+The limit is meant for the agent's own proposals, not for visitor requests.
+I added a narrow exception: when the message asks for the booking or the
+link, or the visitor has just shared their email, the link always goes
+through. Post-processing and the eval checks use the same function, and an
+eval case replays that exact real conversation.
 
-### Os evals a fechar o chat aos visitantes
+### Evals competing with visitors for budget
 
-O kill switch de custo tem um teto diário. No dia das comparações de modelos,
-as baterias de evals esgotaram-no, e o chat do site ficaria fechado até à
-meia-noite. Cada canal passou a ter o seu orçamento (site 1 €, evals 0,60 €),
-e cada um conta só o que gastou. O núcleo continua sem decidir nada pelo
-canal: o orçamento é um dado da configuração. Um canal sem orçamento definido
-fica fechado por omissão.
+The cost kill switch has a daily cap. On the day I compared models, the eval
+batteries would have used it up and closed the website chat until midnight.
+Each channel now has its own budget (website €1, evals €0.60) and only
+counts its own spend. The core still makes no decisions based on the
+channel: the budget is configuration data, and a channel without one is
+closed by default.
 
-## Testar sem sujar a produção
+## Testing without polluting production
 
-Cada bateria de evals cria dezenas de leads. Para não encherem o Notion nem o
-canal da equipa, um lead com email de um domínio de teste (`exemplo.pt`, …)
-fica só no Postgres, marcado como teste. Os avisos dessas conversas também
-ficam marcados e não saem para o Discord. A regra decide pelo dado, não pelo
-canal, por isso também protege de visitantes reais que escrevam um email de
-exemplo.
+Each eval battery creates dozens of leads. To keep them out of Notion and the
+team's channel, a lead whose email uses a test domain (`exemplo.pt`, …) stays
+in Postgres only, flagged as a test. Handoffs from those conversations are
+flagged too and never reach Discord. The rule looks at the data, not the
+channel, so it also covers real visitors who type an example address.
 
-## Uma base de conhecimento que não parte o bot
+## A knowledge base that can't break the agent
 
-A base é um ficheiro Markdown no Google Drive, lido por uma conta de serviço
-só com permissão de leitura nesse ficheiro. Cada versão nova é validada
-contra um contrato (as secções obrigatórias) e identificada por um hash do
-texto normalizado. Uma versão inválida nunca é ativada, a anterior continua a
-funcionar e a equipa recebe um alerta. Sem base ativa, o agente nem é
-chamado: sem base, inventaria.
+The knowledge base is a Markdown file in Google Drive, read by a service
+account with read access to that single file. Every new version is checked
+against a contract (the required sections) and identified by a hash of the
+normalized text. An invalid version is never activated: the previous one
+keeps working and the team gets an alert. Without an active knowledge base,
+the agent isn't called at all, because without one it would make things up.
 
-## O widget
+## The widget
 
-O widget do site é próprio (`chat.js` + `chat.css`, cerca de 15 KB
-comprimidos, sem dependências) em vez do widget genérico do n8n. Isso
-permitiu:
+The website widget is custom (`chat.js` + `chat.css`, ~15 KB gzipped, no
+dependencies) instead of n8n's generic one. That made it possible to:
 
-- abrir o calendário do Cal.com **por cima do chat**, já preenchido com os
-  dados que o bot tem, e confirmar a marcação na conversa;
-- uma personagem animada como botão, com mensagens diferentes por página e um
-  botão "Marcar chamada" sempre visível;
-- uma conversa que continua quando o visitante muda de página;
-- acessibilidade (navegação por teclado, leitores de ecrã, movimento
-  reduzido) e defesa em profundidade (HTML escapado, allowlist de links
-  também no cliente).
+- open the Cal.com calendar **on top of the chat**, pre-filled with what the
+  agent knows, and confirm the booking in the conversation;
+- use an animated character as the launcher, with a different message per
+  page and an always-visible "Book a call" button;
+- keep the conversation going as the visitor moves between pages;
+- get accessibility right (keyboard, screen readers, reduced motion) and add
+  defense in depth (escaped HTML, a client-side link allowlist).
 
-Detalhe em [WIDGET.md](WIDGET.md).
+Details in [WIDGET.md](WIDGET.md).
 
-## Resultado
+## Results
 
 | | |
 |---|---|
-| Em produção | desde outubro de 2026 |
-| Workflows | 9 (2 adaptadores, núcleo, 2 ferramentas, guardas, base, manutenção, erros) |
-| Testes | 100 unitários + 28 de SQL |
-| Evals | 28 casos × 5 corridas; última bateria completa a 96–99% |
-| Ataques | 60/60 |
-| Latência | ~3 s por resposta (mediana) |
-| Custo | ~0,0007 € por resposta |
+| Live | since October 2026 |
+| Workflows | 9 (2 adapters, core, 2 tools, traffic guard, knowledge base sync, maintenance, error handler) |
+| Tests | 100 unit + 28 SQL |
+| Evals | 28 cases × 5 runs; latest full battery at 96–99% |
+| Attacks | 60/60 |
+| Latency | ~3 s per reply (median) |
+| Cost | ~€0.0007 per reply |
 
-## O que vem a seguir
+## What's next
 
-- **WhatsApp como segundo canal.** O núcleo já é independente do canal: é
-  escrever o adaptador.
-- **Um avaliador LLM nos evals**, para medir a qualidade da venda além das
-  verificações determinísticas.
-- **Métricas de conversão** a partir da tabela de turnos: quantas conversas
-  chegam a lead e a marcação.
+- **WhatsApp as a second channel.** The core is already channel-agnostic; it
+  takes one adapter.
+- **An LLM judge in the evals**, to score the quality of the selling on top
+  of the deterministic checks.
+- **Conversion metrics** from the turns table: how many conversations become
+  leads and bookings.

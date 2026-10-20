@@ -1,90 +1,89 @@
-# O widget do site
+# The website widget
 
-O chat do site é um widget próprio: dois ficheiros (`chat.js` e `chat.css`,
-no repositório do site) com cerca de **15 KB comprimidos** e sem
-dependências. Integrá-lo numa página é uma linha:
+The website chat is a custom widget: two files (`chat.js` and `chat.css`,
+in the website repository) totaling about **15 KB gzipped**, with no
+dependencies. Adding it to a page takes one line:
 
 ```html
 <script src="chat.js" defer></script>
 ```
 
-O script cria o botão e o painel, carrega o próprio CSS e fala com o
-workflow `chat-site` do n8n. Usa os tokens de design do site (cores,
-tipografia, raios), com valores de recurso para funcionar mesmo numa página
-sem eles.
+The script creates the launcher and the panel, loads its own CSS and talks to
+the `chat-site` n8n workflow. It uses the website's design tokens (colors,
+type, radii), with fallbacks so it still works on a page without them.
 
-## Porquê um widget próprio
+## Why a custom widget
 
-O n8n tem um widget de chat genérico. Trocá-lo por um próprio permitiu o que
-fazia diferença para a conversão:
+n8n ships a generic chat widget. Building my own made possible what mattered
+for conversion:
 
-- abrir o **calendário do Cal.com por cima do chat**, já com o nome e o email
-  que o bot tem, e confirmar a marcação na própria conversa;
-- uma personagem com identidade da marca no lugar de um ícone genérico;
-- controlar ao pormenor o que é mostrado e como (segurança, acessibilidade,
-  desempenho).
+- opening the **Cal.com calendar on top of the chat**, pre-filled with what
+  the agent knows, and confirming the booking inside the conversation;
+- a branded character instead of a generic chat icon;
+- full control over what gets rendered and how (security, accessibility,
+  performance).
 
-## O que faz
+## Features
 
 | | |
 |---|---|
-| **Personagem como botão** | No desktop, uma personagem ilustrada de corpo inteiro (SVG, volume com gradientes e luz de recorte) acena de vez em quando e quando se passa o rato. No telemóvel e no cabeçalho do chat, o busto num círculo. |
-| **Balão por página** | Uma mensagem adaptada à página ("Qual destes encaixa em si?" nos serviços, "Gostou do que viu?" no laboratório). Nenhum balão onde já se está a marcar ou nas páginas legais. Fecha-se e não volta na sessão. |
-| **Marcar chamada** | Botão sempre visível no cabeçalho, além dos links que o bot dá na conversa. Os dois abrem o calendário por cima do chat, preenchido. |
-| **Confirmação** | Quando a marcação fica feita, o chat confirma-a ("Ficou marcado!") e a personagem festeja. |
-| **Personagem viva** | A boca mexe enquanto o bot escreve; os olhos piscam. |
-| **Respostas por ler** | Quem pergunta e fecha o chat antes da resposta vê um contador no botão, também entre páginas. |
-| **Conversa contínua** | A conversa continua quando o visitante muda de página. |
-| **Sugestões** | Três perguntas prontas na primeira abertura. |
+| **Character as the launcher** | On desktop, a full-body illustrated character (SVG, shaded with gradients and a rim light) waves every now and then and on hover. On mobile and in the chat header, a round bust. |
+| **Per-page bubble** | A message tailored to the page ("Which of these fits you?" on services, "Liked what you saw?" on the lab page). No bubble where people are already booking or on legal pages. Once dismissed, it stays gone for the session. |
+| **Book a call** | An always-visible button in the header, on top of the links the agent gives in the conversation. Both open the calendar on top of the chat, pre-filled. |
+| **Booking confirmation** | When the booking goes through, the chat confirms it and the character celebrates. |
+| **A character that feels alive** | The mouth moves while the agent is typing; the eyes blink. |
+| **Unread replies** | Visitors who ask and close the chat before the reply see a counter on the launcher, across pages too. |
+| **Continuous conversation** | The conversation carries over as the visitor moves between pages. |
+| **Suggestions** | Three ready-made questions the first time the chat opens. |
 
-## Segurança
+## Security
 
-- O texto do bot é **escapado** antes de qualquer formatação. Só depois se
-  reconhecem links, negrito e listas.
-- **Allowlist de links** também no cliente (o site e o Cal.com), como segunda
-  linha de defesa para a do servidor.
-- Os links do Cal.com abrem num separador novo com `rel="noopener"` quando o
-  calendário não carrega.
+- The agent's text is **escaped** before any formatting. Only then are links,
+  bold text and lists recognized.
+- A **link allowlist** on the client too (the website and Cal.com), as a
+  second line of defense behind the server's.
+- When the calendar can't load, Cal.com links open in a new tab with
+  `rel="noopener"`.
 
-## Privacidade
+## Privacy
 
-- O estado (identificador aleatório da conversa e mensagens) fica em
-  `sessionStorage`: só naquela aba, apaga-se ao fechá-la. Sem cookies.
-- O script do Cal.com só é carregado quando o visitante clica para marcar.
+- State (a random conversation id and the messages) lives in
+  `sessionStorage`: that tab only, cleared when it closes. No cookies.
+- The Cal.com script only loads when the visitor clicks to book.
 
-## Acessibilidade
+## Accessibility
 
-- Botões com nomes acessíveis, incluindo o número de respostas por ler.
-- O painel é um `dialog`; as mensagens estão num `role="log"` com
-  `aria-live`, para os leitores de ecrã anunciarem as respostas.
-- Teclado: Enter envia, Shift+Enter muda de linha, Esc fecha; o foco vai para
-  o campo de texto ao abrir e volta ao botão ao fechar.
-- `prefers-reduced-motion`: sem animações.
-- No telemóvel, o painel ocupa o ecrã inteiro e o campo de texto tem 16 px,
-  para o iOS não fazer zoom ao focar.
+- Buttons have accessible names, including the number of unread replies.
+- The panel is a `dialog`; messages live in a `role="log"` region with
+  `aria-live`, so screen readers announce replies.
+- Keyboard: Enter sends, Shift+Enter adds a line, Esc closes; focus moves to
+  the text field on open and back to the launcher on close.
+- `prefers-reduced-motion`: no animations.
+- On mobile, the panel goes full screen and the text field uses 16 px, so
+  iOS doesn't zoom in on focus.
 
-## Desempenho
+## Performance
 
-O site já tinha efeitos visuais pesados (fundo animado, desfoque, grão de
-filme), por isso o widget foi medido, não apenas desenhado:
+The website already had rich visual effects (animated background, blur, film
+grain), so the widget was measured, not just designed:
 
-- **~15 KB comprimidos** no total, sem bibliotecas.
-- As animações contínuas da personagem correm só nos primeiros 20 segundos;
-  depois ficam o piscar e o aceno ocasional, e tudo volta ao passar o rato.
-  Medido com traces do Chrome: menos repintura por baixo do grão do site.
-- A personagem vive numa camada própria (`will-change`), para as repinturas
-  ficarem nela.
-- O smooth scroll do site apanhava a roda do rato em toda a página e
-  impedia o scroll das mensagens. Elementos com `data-scroll-proprio`
-  passaram a ficar com o scroll nativo.
+- **~15 KB gzipped** in total, no libraries.
+- The character's continuous animations only run for the first 20 seconds;
+  after that, only the blink and the occasional wave remain, and everything
+  comes back on hover. Measured with Chrome traces: less repainting under the
+  site's grain overlay.
+- The character lives on its own compositing layer (`will-change`), so
+  repaints stay there.
+- Elements marked `data-scroll-proprio` keep native scrolling, so the site's
+  smooth-scroll script doesn't hijack the mouse wheel inside the message list.
 
-## Como foi testado
+## How it was tested
 
-- **Chrome headless controlado por CDP**, com o webhook simulado: abrir,
-  enviar, mudar de página, fechar antes da resposta, desktop e telemóvel, com
-  capturas de ecrã de cada estado.
-- Verificações automáticas no mesmo teste: formato do pedido, links que não
-  podem aparecer (um `<img onerror>` e um domínio externo numa resposta
-  simulada), persistência entre páginas, erros de JavaScript.
-- **Teste de ponta a ponta em produção**: o site real a falar com o n8n real,
-  incluindo o calendário do Cal.com aberto e preenchido.
+- **Headless Chrome driven over CDP**, with the webhook mocked: open, send,
+  switch pages, close before the reply, desktop and mobile, with screenshots
+  of each state.
+- Automated assertions in the same run: request format, links that must
+  never render (an `<img onerror>` and an external domain in a mocked
+  reply), persistence across pages, JavaScript errors.
+- **End-to-end test in production**: the live website talking to the live
+  n8n, including the Cal.com calendar opening pre-filled.

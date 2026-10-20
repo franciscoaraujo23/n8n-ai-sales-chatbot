@@ -1,19 +1,23 @@
-# Arquitetura
+# Architecture
 
-O chatbot vive inteiro em n8n (2.29.10, numa VPS Hetzner atrás de Caddy), com
-estado num Postgres 17 só na rede interna. O modelo é chamado via OpenRouter.
-Não há RAG: a base de conhecimento inteira vai no contexto do agente.
+The agent runs entirely on n8n (2.29, on a Hetzner VPS behind Caddy), with
+state in a Postgres 17 instance reachable only on the internal network. The
+model is called through OpenRouter. There's no RAG: the whole knowledge base
+goes into the agent's context.
 
-## Visão geral
+Workflow, table and node names are in Portuguese, like the product; the
+tables below explain each one.
+
+## Overview
 
 ```mermaid
 flowchart LR
-  subgraph Canais
-    W["Widget próprio chat.js<br/>(site)"]
+  subgraph Channels
+    W["Custom widget chat.js<br/>(website)"]
     R["evals/correr.js"]
   end
 
-  subgraph Adaptadores
+  subgraph Adapters
     CS["chat-site"]
     CE["chat-eval"]
   end
@@ -21,20 +25,20 @@ flowchart LR
   W -- "POST …/chat" --> CS
   R -- "POST + X-Eval-Token" --> CE
 
-  CS --> GT["guard-trafego<br/>rate limit + teto global"]
+  CS --> GT["guard-trafego<br/>rate limits + global cap"]
   CS --> CC
-  CE --> CC["chat-core<br/>guardas · agente · pós-processamento"]
+  CE --> CC["chat-core<br/>guards · agent · post-processing"]
 
   CC -- "tool" --> TRL["tool-registar-lead"]
   CC -- "tool" --> TAH["tool-avisar-humano"]
   CC <--> LLM["OpenRouter"]
 
-  TRL -- "só leitura" --> CRM[("Notion<br/>CRMs dos comerciais")]
-  TRL -- "cria / atualiza" --> NCS[("Notion<br/>Chatbot site")]
+  TRL -- "read-only" --> CRM[("Notion<br/>sales CRMs")]
+  TRL -- "create / update" --> NCS[("Notion<br/>Chatbot site")]
   TAH --> DL["Discord<br/>#leads"]
 
-  KB["kb-sync<br/>15 em 15 min"] --> GD["Google Drive<br/>(base de conhecimento, .md)"]
-  MAN["manutencao<br/>diário"]
+  KB["kb-sync<br/>every 15 min"] --> GD["Google Drive<br/>(knowledge base, .md)"]
+  MAN["manutencao<br/>daily"]
 
   PG[("Postgres<br/>chatbot")]
   GT --> PG
@@ -45,53 +49,53 @@ flowchart LR
   MAN --> PG
 
   EH["error-handler"] --> PG
-  EH --> DE["Discord<br/>#erros"]
+  EH --> DE["Discord<br/>#errors"]
 ```
 
-Todos os workflows têm o `error-handler` como errorWorkflow. Os erros que o
-fluxo trata (para o visitante receber sempre uma resposta útil) também lhe
-são enviados, por um ramo `[ERROR]` em linha.
+Every workflow uses `error-handler` as its error workflow. Errors the flow
+handles itself (so the visitor always gets a useful reply) are reported to it
+as well, through an inline `[ERROR]` branch.
 
-## Um turno, passo a passo
+## One turn, step by step
 
 ```mermaid
 sequenceDiagram
   autonumber
-  participant V as Visitante (widget)
+  participant V as Visitor (widget)
   participant S as chat-site
   participant G as guard-trafego
   participant C as chat-core
   participant P as Postgres
-  participant A as Agente (OpenRouter)
+  participant A as Agent (OpenRouter)
 
   V->>S: { action, sessionId, chatInput }
-  S->>S: normalizar → payload canónico (recusa ficheiros)
+  S->>S: normalize → canonical payload (rejects files)
   S->>G: payload
-  G->>P: registar_pedido() — contadores por sessão e globais
-  alt acima do limite
-    G->>P: registar_turno() com a guarda
-    G-->>S: resposta fixa
-  else dentro do limite
-    G-->>S: permitido
+  G->>P: registar_pedido() — per-session and global counters
+  alt over the limit
+    G->>P: registar_turno() with the guard
+    G-->>S: fixed reply
+  else within the limit
+    G-->>S: allowed
     S->>C: payload
-    C->>P: contexto_turno() — quarentenas, CTAs, custo do dia, KB ativa, lead
-    C->>C: guardas de conteúdo e kill switch de custo
-    alt bloqueado
-      C->>C: resposta fixa (sem LLM)
-    else permitido
-      C->>A: sistema (prompt + KB + estado) + memória (12 mensagens) + mensagem
-      A-->>C: resposta e passos (tools)
-      C->>C: allowlist de links, corte, [[MARCAR]] → Cal.com, sinal de pt-BR
+    C->>P: contexto_turno() — quarantines, CTAs, today's spend, active KB, lead
+    C->>C: content guards and cost kill switch
+    alt blocked
+      C->>C: fixed reply (no LLM)
+    else allowed
+      C->>A: system (prompt + KB + state) + memory (12 messages) + message
+      A-->>C: reply and steps (tools)
+      C->>C: link allowlist, length cap, [[MARCAR]] → Cal.com, pt-BR signal
     end
-    C->>P: registar_turno() (falha não parte a resposta)
+    C->>P: registar_turno() (a failure never breaks the reply)
     C-->>S: { resposta, … }
   end
   S-->>V: { output }
 ```
 
-## Contrato entre adaptadores e núcleo
+## The adapter/core contract
 
-O núcleo recebe sempre o mesmo payload, versionado:
+The core always receives the same versioned payload:
 
 ```json
 {
@@ -103,57 +107,58 @@ O núcleo recebe sempre o mesmo payload, versionado:
 }
 ```
 
-- O `canal` só é registado. Nenhum nó do núcleo decide com base nele (há um
-  teste que o garante).
-- Um adaptador novo (por exemplo, WhatsApp) normaliza para este payload, chama
-  o `guard-trafego` se for público e chama o `chat-core`.
-- O núcleo recusa outra `schema_version` com um erro explícito.
+- The `canal` (channel) is only logged. No core node decides anything based
+  on it (a test enforces this); per-channel settings such as the cost budget
+  are configuration data looked up by channel.
+- A new adapter (WhatsApp, for instance) normalizes to this payload, calls
+  `guard-trafego` if it's public, and calls `chat-core`.
+- The core rejects any other `schema_version` with an explicit error.
 
-## Camadas e nomes dos nós
+## Layers and node naming
 
-| Prefixo | Papel |
+| Prefix | Role |
 |---|---|
-| `[TRIGGER]` | Entrada: Chat Trigger, Webhook, Schedule, Execute Workflow Trigger, Error Trigger |
-| `[NORMALIZE]` | Transformar dados (payload canónico, contexto, corpos de pedidos) |
-| `[GUARD]` | Decidir se segue: guardas, IFs de controlo |
-| `[AGENT]` | Agente, modelo, memória e chamadas a outros workflows do fluxo principal |
-| `[TOOL]` | Ferramentas do agente e o que elas fazem (Postgres, Notion) |
-| `[OUTPUT]` | Respostas e mensagens para fora (widget, Discord) |
-| `[LOGGING]` | Registos no Postgres |
-| `[ERROR]` | Envio de erros tratados ao error-handler |
+| `[TRIGGER]` | Entry point: Chat Trigger, Webhook, Schedule, Execute Workflow Trigger, Error Trigger |
+| `[NORMALIZE]` | Data shaping (canonical payload, context, request bodies) |
+| `[GUARD]` | Deciding whether to continue: guards, control IFs |
+| `[AGENT]` | Agent, model, memory and main-flow sub-workflow calls |
+| `[TOOL]` | The agent's tools and what they do (Postgres, Notion) |
+| `[OUTPUT]` | Outgoing replies and messages (widget, Discord) |
+| `[LOGGING]` | Writes to Postgres |
+| `[ERROR]` | Reporting handled errors to the error handler |
 
 ## Workflows
 
-| Workflow | Entrada | O que faz |
+| Workflow | Trigger | What it does |
 |---|---|---|
-| `chat-site` | Chat Trigger (Embedded) | Adaptador do widget do site (`chat.js`, no repositório do site). Responde sempre com `{ output }`, mesmo em falha |
-| `chat-eval` | Webhook com Header Auth | Adaptador dos evals. Chama o núcleo sem o `guard-trafego` |
-| `guard-trafego` | Execute Workflow | Rate limit por sessão e teto global; regista os bloqueios |
-| `chat-core` | Execute Workflow | Guardas de conteúdo e custo, agente, pós-processamento, fallback, registo |
-| `tool-registar-lead` | Tool do agente + Schedule (5 min) | Postgres sempre; Notion com contacto válido; novas tentativas com backoff |
-| `tool-avisar-humano` | Tool do agente | Discord #leads, idempotente por (sessão, motivo) |
-| `kb-sync` | Schedule (15 min) | Ficheiro no Google Drive (conta de serviço, só leitura) → validação do contrato → `kb_versions` |
-| `manutencao` | Schedule (04:00) | Retenções (`limpar_dados_antigos()`) |
-| `error-handler` | Error Trigger + Execute Workflow | `errors` + alerta com anti-spam de 5 min |
+| `chat-site` | Chat Trigger (Embedded) | Adapter for the website widget (`chat.js`). Always replies with `{ output }`, even on failure |
+| `chat-eval` | Webhook with header auth | Adapter for the evals. Calls the core without `guard-trafego` |
+| `guard-trafego` | Execute Workflow | Per-session rate limits and the global cap; logs blocked messages |
+| `chat-core` | Execute Workflow | Content and cost guards, agent, post-processing, fallback, logging |
+| `tool-registar-lead` | Agent tool + Schedule (5 min) | Always Postgres; Notion once there's valid contact info; retries with backoff |
+| `tool-avisar-humano` | Agent tool | Team notification on Discord #leads, idempotent per (session, reason), sent ~10 s later off the tool's path |
+| `kb-sync` | Schedule (15 min) | Google Drive file (service account, read-only) → contract validation → `kb_versions` |
+| `manutencao` | Schedule (04:00) | Retention (`limpar_dados_antigos()`) |
+| `error-handler` | Error Trigger + Execute Workflow | `errors` table + alert with a 5-minute anti-spam window |
 
-## Dados
+## Data
 
-| Tabela | Conteúdo |
+| Table | Contents |
 |---|---|
-| `turns` | Um registo por mensagem (incluindo as bloqueadas): texto, resposta, guarda, tools, custo estimado, KB usada, modelo, latência, sinais |
-| `leads` | Um por conversa: dados do visitante, página no Notion, verificação nos CRMs, estado da sincronização |
-| `kb_versions` | Cada versão distinta da base; no máximo uma ativa, e só se cumprir o contrato |
-| `rate_limits` | Contadores por janela (minuto e dia), por sessão e globais |
-| `handoffs` | Avisos à equipa, únicos por (sessão, motivo) |
-| `errors` | Erros de todos os workflows, com a decisão de alerta |
-| `chat_memoria` | Memória do agente; criada pelo nó Postgres Chat Memory |
-| `schema_migrations` | Migrations aplicadas |
+| `turns` | One row per message (blocked ones included): text, reply, guard, tools, estimated cost, KB version, model, latency, quality signals |
+| `leads` | One per conversation: visitor data, Notion page, CRM check, sync state |
+| `kb_versions` | Every distinct knowledge-base version; at most one active, and only if it meets the contract |
+| `rate_limits` | Counters per window (minute and day), per session and global |
+| `handoffs` | Team notifications, unique per (session, reason) |
+| `errors` | Errors from every workflow, with the alerting decision |
+| `chat_memoria` | Agent memory; created by n8n's Postgres Chat Memory node |
+| `schema_migrations` | Applied migrations |
 
-A lógica com estado (contadores, ativação da KB, idempotência, reserva para
-sincronizar, anti-spam) está em funções SQL atómicas, testadas em PGlite
-(`tests/sql/`). Os workflows chamam-nas com um único parâmetro `jsonb`.
+Stateful logic (counters, KB activation, idempotency, sync reservations,
+anti-spam) lives in atomic SQL functions, tested on PGlite (`tests/sql/`).
+Workflows call them with a single `jsonb` parameter.
 
-## Código partilhado e build
+## Shared code and the build
 
 ```
 src/*.js  ──►  scripts/workflows/*.js  ──►  scripts/build.js  ──►  workflows/*.json  ──►  n8n
@@ -161,40 +166,40 @@ src/*.js  ──►  scripts/workflows/*.js  ──►  scripts/build.js  ──
    └──► tests/*.test.js                       tests/harness.js ────────┘
 ```
 
-- `src/` tem JavaScript puro, sem `require`. O build copia cada ficheiro, até
-  à linha `// --- o build corta a partir daqui ---`, para os Code nodes que o
-  usam. O que corre no n8n é exatamente o que os testes cobrem.
-- `tests/harness.js` corre o `jsCode` dos JSON gerados com uma simulação de
-  `$`, `$json` e `$input`, para apanhar ligações erradas entre nós.
-- Os exports em `workflows/` referem credenciais e sub-workflows pelo nome; os
-  IDs são resolvidos no envio (`node scripts/build.js --enviar`).
+- `src/` is plain JavaScript with no `require`. The build copies each file,
+  up to the line `// --- o build corta a partir daqui ---`, into the Code
+  nodes that use it. What runs in n8n is exactly what the tests cover.
+- `tests/harness.js` runs the `jsCode` from the generated JSON against a mock
+  of `$`, `$json` and `$input`, catching wrong wiring between nodes.
+- Exports in `workflows/` reference credentials and sub-workflows by name;
+  ids are resolved at deploy time (`node scripts/build.js --enviar`).
 
-## Fazer uma alteração
+## Making a change
 
-1. Mudar `src/` (lógica), `prompts/` (comportamento), `scripts/workflows/`
-   (estrutura dos workflows) ou `src/config.js` (limites, modelo, links).
-2. `npm test`: os testes correm o código exato que vai para o n8n.
-3. `node scripts/build.js --enviar <workflow>`: cria ou atualiza pelo nome,
-   sempre inativo para workflows novos. Antes, fechar esse workflow no editor
-   do n8n (uma gravação no editor reverte o envio).
-4. Correr os evals.
+1. Change `src/` (logic), `prompts/` (behavior), `scripts/workflows/`
+   (workflow structure) or `src/config.js` (limits, model, links).
+2. `npm test`: the tests run the exact code that ships to n8n.
+3. `node scripts/build.js --enviar <workflow>`: creates or updates by name;
+   new workflows are always created inactive. Close that workflow in the n8n
+   editor first (saving in the editor would overwrite the deployment).
+4. Run the evals.
 
-Alterações ao schema: nova migration numerada em `sql/`, testada em
-`tests/sql/` e aplicada **antes** de enviar os workflows que dependem dela
-(ver o RUNBOOK).
+Schema changes: a new numbered migration in `sql/`, tested in `tests/sql/`,
+and applied **before** deploying the workflows that depend on it (see the
+RUNBOOK).
 
-## Segurança, por camada
+## Security by layer
 
-Resumo; o detalhe e a bateria de ataques estão em [SECURITY.md](SECURITY.md).
+Summary; the details and the attack battery are in [SECURITY.md](SECURITY.md).
 
-| Ameaça | Proteção |
+| Threat | Protection |
 |---|---|
-| Muitas mensagens de uma sessão | Rate limit por sessão (`guard-trafego`) |
-| Rodar o `session_id` (gerado no cliente) | Teto global por minuto e por dia |
-| Custo descontrolado | Kill switch diário (estimado) no núcleo + limite de crédito na chave do OpenRouter |
-| Prompt injection e pedidos de segredos | Quarentena por regras determinísticas antes do LLM; bloqueio da sessão após 3; regras no prompt |
-| Links maliciosos na resposta | Allowlist (site e Cal.com da Náutica); o link de marcação é montado em código |
-| Ficheiros enviados ao webhook | Recusados na normalização |
-| Outra origem a chamar o webhook | `Allowed Origins` é só CORS; a proteção real é o teto global |
-| Fugas para o Discord | Alertas sem mensagens de erro; menções neutralizadas |
-| Dados pessoais nas execuções do n8n | Execuções bem-sucedidas não são gravadas |
+| Too many messages from one session | Per-session rate limit (`guard-trafego`) |
+| Rotating the client-generated `session_id` | Global cap per minute and per day |
+| Runaway cost | Daily per-channel kill switch in the core + credit limit on the provider key |
+| Prompt injection and secret requests | Deterministic quarantine before the LLM; session blocked after 3; prompt rules |
+| Malicious links in replies | Allowlist (website and calendar); the booking link is built in code |
+| Files sent to the webhook | Rejected during normalization |
+| Other origins calling the webhook | `Allowed Origins` is CORS only; the real protection is the global cap |
+| Leaks into Discord | Alerts without error text; mentions neutralized |
+| Personal data in n8n executions | Successful executions aren't stored |

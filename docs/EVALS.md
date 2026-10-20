@@ -1,12 +1,12 @@
-# Evals: como se mede a qualidade do bot
+# Evals: measuring how the agent behaves
 
-Os testes unitários garantem que o código faz o que deve. Os evals respondem
-a outra pergunta: **o bot, a conversar com um visitante, comporta-se como
-queremos?** Cada eval é uma conversa escrita como caso de teste e corrida
-contra o bot real, em produção, com o mesmo agente, prompt, base de
-conhecimento e pós-processamento.
+Unit tests make sure the code does what it should. Evals answer a different
+question: **when it talks to a visitor, does the agent behave the way I
+want?** Each eval is a conversation written as a test case and run against
+the live agent, with the same agent, prompt, knowledge base and
+post-processing as production.
 
-## Um caso
+## A case
 
 ```json
 {
@@ -28,27 +28,28 @@ conhecimento e pós-processamento.
 }
 ```
 
-Cada turno tem o texto do visitante e o que se espera da resposta:
+Cases are written in Portuguese, like the product. Each turn has the
+visitor's message and what the reply is expected to do:
 
-| Verificação | O que confirma |
+| Check | What it confirms |
 |---|---|
-| `guarda` | A guarda que travou a mensagem (`quarentena`, `kill_switch_custo`, …) ou `null` se chegou ao modelo |
-| `deve_conter` / `nao_deve_conter` | Texto ou expressões regulares na resposta |
-| `tools_inclui` / `tools_exclui` / `sem_tools` | Que ferramentas o agente usou |
-| `cta` | Se a resposta propôs a chamada (o link de marcação) |
-| `max_chars` | Tamanho da resposta |
+| `guarda` | Which guard stopped the message (`quarentena`, `kill_switch_custo`, …), or `null` if it reached the model |
+| `deve_conter` / `nao_deve_conter` | Text or regular expressions that must / must not appear in the reply |
+| `tools_inclui` / `tools_exclui` / `sem_tools` | Which tools the agent used |
+| `cta` | Whether the reply proposed the call (the booking link) |
+| `max_chars` | Reply length |
 
-Em todos os turnos correm sempre três verificações: **sem resposta de
-recurso** (o modelo não falhou), **sem marcas de português do Brasil** e **só
-preços que existam na base**. No fim da conversa há verificações da conversa
-inteira, por exemplo "no máximo duas chamadas à ação por iniciativa do bot" ou
-"registou o lead em algum turno".
+Three checks run on every turn: **no fallback reply** (the model didn't
+fail), **no Brazilian Portuguese markers**, and **only prices that exist in
+the knowledge base**. Conversation-level checks run at the end, for example
+"at most two calls to action on the agent's own initiative" or "registered
+the lead in some turn".
 
-## Cinco corridas por caso
+## Five runs per case
 
-Um modelo de linguagem não responde duas vezes da mesma maneira. Com uma só
-corrida, uma mudança ao prompt pode parecer melhorar ou piorar por sorte. Por
-isso cada caso corre **5 vezes** e o resultado é uma taxa de acerto:
+A language model never answers the same way twice. With a single run, a
+prompt change can look better or worse by pure chance. So every case runs
+**5 times** and the result is a pass rate:
 
 ```
 100%  5/5  faq-servicos  (perguntas_frequentes)
@@ -57,92 +58,90 @@ isso cada caso corre **5 vezes** e o resultado é uma taxa de acerto:
 Corridas certas: 79/80 (99%). Casos a 100%: 15/16.
 ```
 
-Todas as respostas ficam gravadas. `--reavaliar <ficheiro>` volta a aplicar
-as verificações atuais a respostas já gravadas, sem chamar o bot: quando uma
-verificação é corrigida, compara-se tudo com as mesmas regras e sem custo.
+Every reply is recorded. `--reavaliar <file>` re-applies the current checks
+to recorded replies without calling the agent: when a check is refined,
+before and after are compared under the same rules, at no cost.
 
-## Os casos
+## The cases
 
-28 casos, agrupados pelo que testam:
+28 cases, grouped by what they protect:
 
-| Categoria | Casos | O que protege |
+| Category | Cases | What it protects |
 |---|---|---|
-| Perguntas frequentes | serviços, processo, "é uma pessoa ou um bot?" | Respostas fiéis à base, sem forçar a venda |
-| Fora do âmbito | pedido sem relação com a empresa | Recusa com simpatia e volta ao tema |
-| Preços | preço fora da base, nome de plano | Nunca inventa nem revela preços internos |
-| Português | deriva para pt-BR, visitante em inglês | Sempre português de Portugal |
-| Qualificação | conversa completa até ao email (5 turnos) | O lead é registado com os dados certos |
-| Honestidade | volume baixo em que a automação não compensa | Diz que não compensa em vez de vender |
-| O que nunca dizer | clientes, marcação direta na agenda | Respeita as regras da base |
-| Passagem a uma pessoa | "prefiro falar com alguém" | Regista o contacto e avisa a equipa |
-| Chamada à ação | insistir no link, "marque por mim", pedido depois do limite | O link aparece quando deve, preenchido |
-| Segurança | 12 ataques (ver [SECURITY.md](SECURITY.md)) | Nada de fugas, links ou código perigosos |
+| FAQs | services, process, "am I talking to a person or a bot?" | Answers faithful to the knowledge base, without forcing the sale |
+| Out of scope | unrelated request | Declines kindly and steers back |
+| Pricing | price not in the knowledge base, internal plan names | Never invents or leaks internal pricing |
+| Language | drift into pt-BR, visitor writing in English | Always European Portuguese |
+| Qualification | full conversation up to the email (5 turns) | The lead is registered with the right data |
+| Honesty | low volume where automation doesn't pay off | Says so instead of selling |
+| Never say | clients, direct calendar booking claims | Follows the knowledge base's rules |
+| Human handoff | "I'd rather talk to someone" | Registers the contact and notifies the team |
+| Call to action | asking for the link repeatedly, "book it for me", asking after the limit | The link appears when it should, pre-filled |
+| Security | 12 attacks (see [SECURITY.md](SECURITY.md)) | No leaks, dangerous links or code |
 
-## O adaptador dos evals
+## The eval adapter
 
-Os evals entram por um adaptador próprio (`chat-eval`), um webhook com
-autenticação por cabeçalho que chama o mesmo núcleo do site. Duas diferenças
-em relação ao site:
+Evals come in through their own adapter (`chat-eval`), a webhook with header
+authentication that calls the same core as the website. Two differences:
 
-- **Não passa pelos limites de tráfego**, que bloqueariam a própria bateria.
-  O núcleo não tem nenhuma opção para "saltar limites": a diferença está no
-  adaptador.
-- **Tem orçamento próprio** no kill switch de custo (0,60 €/dia). Os evals
-  nunca gastam o orçamento do site.
+- **It skips the traffic limits**, which would block the battery itself. The
+  core has no "skip limits" switch: the difference lives in the adapter.
+- **It has its own budget** in the cost kill switch (€0.60/day). Evals never
+  spend the website's budget.
 
-Os leads criados pelos evals usam emails de domínios de teste e ficam só no
-Postgres, marcados como teste: não vão para o Notion nem geram avisos no
-Discord.
+Leads created by evals use test-domain emails and stay in Postgres only,
+flagged as tests: they don't go to Notion and don't trigger Discord
+notifications.
 
-## Escolha do modelo
+## Choosing the model
 
-O modelo foi escolhido com esta bateria. Cinco candidatos baratos com suporte
-de ferramentas, 12 casos × 5 corridas cada, através do agente do n8n tal como
-está em produção, e todas as baterias reavaliadas com as mesmas verificações:
+The model was chosen with this battery: five inexpensive candidates with tool
+support, 12 cases × 5 runs each, through the n8n agent exactly as it runs in
+production, all batteries re-scored with the same checks:
 
-| Modelo | USD/1M tokens (entrada / saída) | Corridas certas | Latência p50 / p90 |
+| Model | USD per 1M tokens (in / out) | Passing runs | Latency p50 / p90 |
 |---|---|---|---|
-| `claude-haiku-5.5` | 0,10 / 0,50 | 58/60 | 3,5 s / 4,4 s |
-| `gemini-3.1-flash-lite` | 0,25 / 1,50 | 58/60 | 1,5 s / 2,1 s |
-| `gpt-4.1-mini` | 0,40 / 1,60 | 55/60 | 1,6 s / 2,4 s |
-| `gpt-5.6-luna` | 0,20 / 1,20 | 41/60 | — |
-| `mistral-small-2603` | 0,15 / 0,60 | 5/60 | — |
+| `claude-haiku-5.5` | 0.10 / 0.50 | 58/60 | 3.5 s / 4.4 s |
+| `gemini-3.1-flash-lite` | 0.25 / 1.50 | 58/60 | 1.5 s / 2.1 s |
+| `gpt-4.1-mini` | 0.40 / 1.60 | 55/60 | 1.6 s / 2.4 s |
+| `gpt-5.6-luna` | 0.20 / 1.20 | 41/60 | — |
+| `mistral-small-2603` | 0.15 / 0.60 | 5/60 | — |
 
-O empate decidiu-se pelo tipo de falha: o Gemini dizia ao visitante que tinha
-guardado o email sem chamar a ferramenta que o guarda, e numa das conversas o
-lead perdeu-se. O raciocínio completo está nas
-[decisões](DECISIONS.md#modelo-e-custos).
+The tie was broken by the kind of failure: Gemini told visitors it had saved
+their email without calling the tool that saves it, and in one conversation
+the lead was lost. The full reasoning is in the
+[decision log](DECISIONS.md#model-and-cost).
 
-## Métricas que os evals também mostram
+## Metrics beyond pass/fail
 
-Além das verificações, o runner mede o que um humano não veria a ler meia
-dúzia de respostas: latência (p50 e p90), respostas de recurso e **respostas
-cortadas**. Foi esta última métrica que mostrou que o modelo escolhido
-raciocinava antes de responder e esgotava o teto de tokens (ver o
-[estudo de caso](CASE-STUDY.md#respostas-cortadas-a-meio-de-uma-palavra)).
+Besides the checks, the runner measures what reading a handful of replies
+wouldn't reveal: latency (p50 and p90), fallback replies and **truncated
+replies**. That last metric is what showed the chosen model was reasoning
+before answering and exhausting its token budget (see the
+[case study](CASE-STUDY.md#replies-cut-off-mid-word)).
 
-## Verificar as verificações
+## Checking the checks
 
-Uma verificação errada é pior do que nenhuma: dá confiança falsa. Três
-práticas:
+A wrong check is worse than none, because it gives false confidence. Three
+practices keep the checks honest:
 
-1. **Ler as falhas antes de mexer no bot.** Muitas falhas iniciais eram
-   paráfrases corretas que uma expressão regular não apanhava.
-2. **Testes aos próprios evals.** Os casos são validados (JSON bem formado,
-   ids únicos, sem caracteres de controlo). Num ficheiro JSON, um `\b` mal
-   escapado vira um backspace e a expressão regular deixa de apanhar o que
-   devia, em silêncio. Um teste garante que isso não volta a acontecer.
-3. **A mesma regra no bot e no eval.** Quando o bot decide algo em código (por
-   exemplo, se o visitante pediu o link de marcação), o eval usa a mesma
-   função, importada de `src/`, em vez de uma cópia que pode divergir.
+1. **Read the failures before changing the agent.** A failure might be a
+   correct paraphrase the regex doesn't match.
+2. **The cases are tested too**: valid JSON, unique ids, and no control
+   characters (a badly escaped `\b` in JSON silently becomes a backspace and
+   the regex stops matching).
+3. **The same rule in the agent and in the eval.** When the agent decides
+   something in code (for instance, whether the visitor asked for the
+   booking link), the eval imports the same function from `src/` instead of
+   keeping a copy that could drift.
 
-## Correr
+## Running
 
 ```bash
-npm run evals                                # todos os casos, 5 corridas
+npm run evals                                # every case, 5 runs
 node evals/correr.js quem-somos --repeticoes 10
-node evals/correr.js --reavaliar evals/resultados/<ficheiro>.json
+node evals/correr.js --reavaliar evals/resultados/<file>.json
 ```
 
-Precisa de `.env` com o URL e o token do adaptador (ver `.env.example`). Uma
-bateria completa custa cerca de 0,10 € e demora 6 a 8 minutos.
+Requires a `.env` with the adapter's URL and token (see `.env.example`). A
+full battery costs about €0.10 and takes 6 to 8 minutes.

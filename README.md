@@ -1,4 +1,4 @@
-# Náutica AI — Website Sales Agent
+# AI Sales Chatbot on n8n — built for Náutica AI
 
 An AI sales agent for the website of [Náutica AI](https://nautica-ai-agency.com),
 a Portuguese automation and AI agency. It answers questions about the

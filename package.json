@@ -1,8 +1,8 @@
 {
-  "name": "nautica-chatbot",
+  "name": "n8n-ai-sales-chatbot",
   "version": "0.1.0",
   "private": true,
-  "description": "Chatbot do site da Nautica AI, em n8n: guardas, validações, migrations e evals.",
+  "description": "AI sales chatbot built on n8n for the Náutica AI website: guards, validation, migrations and evals.",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=20"

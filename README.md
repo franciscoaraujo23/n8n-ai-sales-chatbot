@@ -137,3 +137,8 @@ Production secrets live in n8n credentials, never in the repository.
 | [WIDGET.md](docs/WIDGET.md) | The website widget: design, performance, accessibility |
 | [DECISIONS.md](docs/DECISIONS.md) | Every decision and why |
 | [RUNBOOK.md](docs/RUNBOOK.md) | Operating, diagnosing and fixing it in production |
+
+## License
+
+© 2026 Francisco Araújo. All rights reserved. This repository is shared for
+portfolio purposes only; see [LICENSE](LICENSE).

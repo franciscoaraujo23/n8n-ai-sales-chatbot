@@ -9,7 +9,7 @@ Não há RAG: a base de conhecimento inteira vai no contexto do agente.
 ```mermaid
 flowchart LR
   subgraph Canais
-    W["Widget @n8n/chat<br/>(site)"]
+    W["Widget próprio chat.js<br/>(site)"]
     R["evals/correr.js"]
   end
 
@@ -126,7 +126,7 @@ O núcleo recebe sempre o mesmo payload, versionado:
 
 | Workflow | Entrada | O que faz |
 |---|---|---|
-| `chat-site` | Chat Trigger (Embedded) | Adaptador do widget. Responde sempre com `{ output }`, mesmo em falha |
+| `chat-site` | Chat Trigger (Embedded) | Adaptador do widget do site (`chat.js`, no repositório do site). Responde sempre com `{ output }`, mesmo em falha |
 | `chat-eval` | Webhook com Header Auth | Adaptador dos evals. Chama o núcleo sem o `guard-trafego` |
 | `guard-trafego` | Execute Workflow | Rate limit por sessão e teto global; regista os bloqueios |
 | `chat-core` | Execute Workflow | Guardas de conteúdo e custo, agente, pós-processamento, fallback, registo |

@@ -17,8 +17,10 @@ testada e decisões documentadas.
 - **Venda consultiva**: responde primeiro ao que foi perguntado, faz uma
   pergunta de cada vez sobre o negócio, liga a dor a um serviço, propõe a
   chamada no máximo duas vezes e diz com honestidade quando não é bom encaixe.
-- **Marcação por link do Cal.com** com nome e email pré-preenchidos, montado em
-  código (o modelo nunca escreve o URL).
+- **Marcação num clique**: o link do Cal.com, montado em código (o modelo nunca
+  escreve o URL), abre o calendário por cima do chat já com o nome e o email.
+  O limite de duas chamadas à ação é para as propostas do bot; quem pede o
+  link recebe-o sempre.
 - **Duas ferramentas**: `registar_lead` (Postgres + Notion, com verificação só
   de leitura nos CRMs dos comerciais) e `avisar_humano` (Discord, idempotente).
 - **Guardas antes do LLM**: tamanho, rate limit por sessão, teto global por
@@ -29,6 +31,10 @@ testada e decisões documentadas.
 - **Tudo registado**: cada turno (texto, resposta, guarda, tools, custo
   estimado, versão da base, modelo, latência) e cada erro, com alertas no
   Discord e anti-spam.
+- **Widget próprio** (`chat.js` + `chat.css` no repositório do site, ~15 KB
+  comprimidos, sem dependências): personagem animada como botão, balão por
+  página, botão "Marcar chamada" no cabeçalho, contador de respostas por ler e
+  conversa que continua entre páginas (sessionStorage).
 
 ## Estrutura
 
@@ -84,8 +90,8 @@ Alterações ao schema: nova migration numerada em `sql/`, testada em
 
 | | |
 |---|---|
-| Workflows | 9, criados e validados com o n8n-mcp |
-| Testes | 90 unitários + 17 SQL |
-| Evals | 10 casos iniciais |
+| Workflows | 9, validados com o n8n-mcp; em produção desde 2026-10-19 |
+| Testes | 100 unitários + 28 SQL |
+| Evals | 18 casos × 5 corridas, taxa de acerto por caso |
 | Base de conhecimento | ficheiro Markdown no Google Drive, lido por uma conta de serviço |
 | Modelo | `anthropic/claude-haiku-5.5` via OpenRouter, escolhido por comparação de 5 modelos no eval (ver DECISIONS) |

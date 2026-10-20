@@ -169,7 +169,23 @@ src/*.js  ──►  scripts/workflows/*.js  ──►  scripts/build.js  ──
 - Os exports em `workflows/` referem credenciais e sub-workflows pelo nome; os
   IDs são resolvidos no envio (`node scripts/build.js --enviar`).
 
+## Fazer uma alteração
+
+1. Mudar `src/` (lógica), `prompts/` (comportamento), `scripts/workflows/`
+   (estrutura dos workflows) ou `src/config.js` (limites, modelo, links).
+2. `npm test`: os testes correm o código exato que vai para o n8n.
+3. `node scripts/build.js --enviar <workflow>`: cria ou atualiza pelo nome,
+   sempre inativo para workflows novos. Antes, fechar esse workflow no editor
+   do n8n (uma gravação no editor reverte o envio).
+4. Correr os evals.
+
+Alterações ao schema: nova migration numerada em `sql/`, testada em
+`tests/sql/` e aplicada **antes** de enviar os workflows que dependem dela
+(ver o RUNBOOK).
+
 ## Segurança, por camada
+
+Resumo; o detalhe e a bateria de ataques estão em [SECURITY.md](SECURITY.md).
 
 | Ameaça | Proteção |
 |---|---|
@@ -177,7 +193,7 @@ src/*.js  ──►  scripts/workflows/*.js  ──►  scripts/build.js  ──
 | Rodar o `session_id` (gerado no cliente) | Teto global por minuto e por dia |
 | Custo descontrolado | Kill switch diário (estimado) no núcleo + limite de crédito na chave do OpenRouter |
 | Prompt injection e pedidos de segredos | Quarentena por regras determinísticas antes do LLM; bloqueio da sessão após 3; regras no prompt |
-| Links maliciosos na resposta | Allowlist (site e Cal.com da Nautica); o link de marcação é montado em código |
+| Links maliciosos na resposta | Allowlist (site e Cal.com da Náutica); o link de marcação é montado em código |
 | Ficheiros enviados ao webhook | Recusados na normalização |
 | Outra origem a chamar o webhook | `Allowed Origins` é só CORS; a proteção real é o teto global |
 | Fugas para o Discord | Alertas sem mensagens de erro; menções neutralizadas |

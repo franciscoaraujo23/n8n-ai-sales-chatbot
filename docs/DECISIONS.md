@@ -40,16 +40,20 @@ versão em produção (2.29.10), não na documentação.
   responder primeiro, uma pergunta de cada vez, ligar a dor a um serviço,
   honestidade sobre o encaixe, sem urgência falsa nem descontos, nunca
   inventar fora da base.
-- **Marcação por link do Cal.com, aberto num separador novo**, com nome e
-  email pré-preenchidos. Sem pop-up: o calendário não cabe na janela do chat.
-  O widget já abre links num separador novo (verificado no `@n8n/chat`).
+- **Marcação no calendário do Cal.com aberto por cima do chat** (2026-10-19),
+  com nome e email pré-preenchidos. Começou por ser um link num separador
+  novo, enquanto o widget era o `@n8n/chat`; com o widget próprio, o link abre
+  o modal do Cal.com (a mesma integração e tema da página Marcar) e a
+  marcação é confirmada na conversa. Sem o script do Cal.com, abre o link num
+  separador novo.
 - **O link é montado em código, não pelo LLM.** O agente escreve
   `[[MARCAR]]`; o pós-processamento troca-o pelo URL com os dados gravados
   nesse mesmo turno. Garante o URL certo e o máximo de duas chamadas à ação
   por conversa, também em código.
-- **Allowlist de links na resposta** (site e Cal.com da Nautica). O widget
-  escapa HTML e não torna URLs soltos clicáveis (verificado), por isso o único
-  link útil é o Markdown que o código monta ou deixa passar.
+- **Allowlist de links na resposta** (site e Cal.com da Náutica). O widget
+  escapa o HTML e só torna clicáveis links Markdown de hosts permitidos (a
+  mesma allowlist, repetida no cliente), por isso o único link útil é o que o
+  código monta ou deixa passar.
 - **`motivo` do `avisar_humano` é um enum fechado.** Com texto livre, a
   idempotência "não avisar duas vezes salvo se o motivo mudar" não funciona.
 - **Lead com contacto avisa a equipa automaticamente** (2026-10-18). O
@@ -142,6 +146,26 @@ versão em produção (2.29.10), não na documentação.
   fica fechado. A soma (~1,75 USD) fica abaixo dos 2 USD/dia da chave.
 - **Memória com `contextWindowLength` = 6**: o nó conta interações (pergunta +
   resposta), não mensagens; 6 interações são as 12 mensagens decididas.
+
+## Widget
+
+- **Widget próprio em vez do `@n8n/chat`** (2026-10-19). Dois ficheiros no
+  repositório do site, sem dependências, com os tokens de design do site. O
+  genérico não permitia abrir o calendário por cima do chat nem dar
+  identidade à marca, e trazia uma dependência externa de um CDN.
+- **Estado em `sessionStorage`, não em `localStorage` nem cookies**: a
+  conversa continua entre páginas e apaga-se ao fechar a aba, como o resto do
+  site (a origem da visita usa o mesmo).
+- **A personagem é SVG inline, não uma imagem.** Fica nítida em qualquer
+  tamanho, pesa ~6 KB e pode animar (olhos, aceno, boca a falar). Uma imagem
+  3D pré-renderizada ficaria estática, e um modelo 3D no browser custaria
+  150–600 KB.
+- **Animações contínuas só nos primeiros 20 segundos** (2026-10-21). Medido
+  com traces do Chrome: a personagem era o efeito que mais repintava, por
+  baixo do grão de filme do site. Depois ficam o piscar e o aceno ocasional.
+- **Sem avatar ao lado de cada resposta.** O painel é estreito (390 px) e o
+  cabeçalho já mostra a personagem; o ganho não compensava a largura perdida
+  nas mensagens.
 
 ## Dados
 

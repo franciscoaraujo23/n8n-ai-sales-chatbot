@@ -136,9 +136,13 @@ node scripts/build.js --enviar chat-core       # só um
   muda; um ficheiro novo teria outro ID e o `kb-sync` continuaria a ler o
   antigo). Em até 15 minutos o `kb-sync` lê-o e, se o contrato estiver
   cumprido, ativa a versão nova. Para ser já: "Execute workflow" no `kb-sync`.
+  Editar fora do Drive: descarregar o ficheiro, editar num editor de texto e
+  carregar como nova versão. "Abrir com → Google Docs" cria uma cópia com
+  outro ID, e um ficheiro carregado à parte (por exemplo, `…_v2.md`) também:
+  nos dois casos o bot não vê a alteração.
 - **Se mudar o ficheiro:** partilhar o novo com a conta de serviço (leitor) e
   atualizar `CONFIG.kb.driveFileId`; enviar o `kb-sync`.
-- **Contrato:** os 11 títulos como "Título 2", por esta ordem: Sobre a Nautica
+- **Contrato:** os 11 títulos de secção (`## …`), por esta ordem: Sobre a Nautica
   · Serviços · Para quem é e para quem não é · Processo · Preços · Chamada de
   diagnóstico · Objeções e respostas · Perguntas frequentes · Credibilidade ·
   O que o bot nunca deve dizer · Contactos e horário.
